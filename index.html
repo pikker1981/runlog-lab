@@ -16,9 +16,6 @@
 
   <body>
     <div class="app">
-      <!-- =========================
-           Header
-      ========================== -->
       <header class="header">
         <div class="container header-inner">
           <a href="#" class="logo" aria-label="RunLog Lab 홈">
@@ -27,24 +24,31 @@
           </a>
 
           <nav class="nav" aria-label="메인 메뉴">
-            <a href="#dashboard">Dashboard</a>
-            <a href="#input">Input</a>
-            <a href="#history">History</a>
-            <a href="#criteria">Criteria</a>
+            <button type="button" data-view-tab="dashboard" class="active">
+              Dashboard
+            </button>
+            <button type="button" data-view-tab="input">
+              데이터 입력
+            </button>
+            <button type="button" data-view-tab="history">
+              기록 내역
+            </button>
+            <button type="button" data-view-tab="criteria">
+              점수 기준표
+            </button>
           </nav>
 
           <div class="header-actions">
             <button type="button" class="btn btn-secondary" id="resetButton">
               전체 초기화
             </button>
-            <a class="btn btn-primary" href="#input">기록 입력</a>
+            <button type="button" class="btn btn-primary" data-view-tab="input">
+              기록 입력
+            </button>
           </div>
         </div>
       </header>
 
-      <!-- =========================
-           Main
-      ========================== -->
       <main>
         <!-- =========================
              Hero
@@ -69,14 +73,16 @@
                 <button
                   type="button"
                   class="btn btn-primary"
-                  data-tab="running"
+                  data-view-tab="input"
+                  data-record-tab-target="running"
                 >
                   러닝 기록하기
                 </button>
                 <button
                   type="button"
                   class="btn btn-secondary"
-                  data-tab="sleep"
+                  data-view-tab="input"
+                  data-record-tab-target="sleep"
                 >
                   수면 기록하기
                 </button>
@@ -144,9 +150,13 @@
         </section>
 
         <!-- =========================
-             Dashboard
+             Dashboard View
         ========================== -->
-        <section class="section" id="dashboard">
+        <section
+          class="section view-panel"
+          id="dashboard"
+          data-view-panel="dashboard"
+        >
           <div class="container">
             <div class="section-head">
               <div>
@@ -168,7 +178,6 @@
                       <p>Running Distance</p>
                     </div>
                   </div>
-
                   <div class="big-number">
                     <span data-total-run-distance>0</span>
                     <span class="metric-unit">km</span>
@@ -185,7 +194,6 @@
                       <p>Average Pace</p>
                     </div>
                   </div>
-
                   <div class="big-number">
                     <span id="avgRunPace">-</span>
                   </div>
@@ -201,7 +209,6 @@
                       <p>Average HR</p>
                     </div>
                   </div>
-
                   <div class="big-number">
                     <span id="avgRunHeartRate">0</span>
                     <span class="metric-unit">bpm</span>
@@ -218,7 +225,6 @@
                       <p>Total Calories</p>
                     </div>
                   </div>
-
                   <div class="big-number">
                     <span id="totalRunCalories">0</span>
                     <span class="metric-unit">kcal</span>
@@ -235,7 +241,6 @@
                       <p>Average Sleep Score</p>
                     </div>
                   </div>
-
                   <div class="big-number">
                     <span data-avg-sleep-score>0</span>
                     <span class="metric-unit">점</span>
@@ -252,7 +257,6 @@
                       <p>Average Sleep Duration</p>
                     </div>
                   </div>
-
                   <div class="big-number">
                     <span id="avgSleepTime">0분</span>
                   </div>
@@ -268,7 +272,6 @@
                       <p>Deep Sleep Ratio</p>
                     </div>
                   </div>
-
                   <div class="big-number">
                     <span id="avgDeepSleepRatio">0%</span>
                   </div>
@@ -284,7 +287,6 @@
                       <p>REM Sleep Ratio</p>
                     </div>
                   </div>
-
                   <div class="big-number">
                     <span id="avgRemSleepRatio">0%</span>
                   </div>
@@ -333,9 +335,9 @@
         </section>
 
         <!-- =========================
-             Input
+             Input View
         ========================== -->
-        <section class="section" id="input">
+        <section class="section view-panel hide" id="input" data-view-panel="input">
           <div class="container">
             <div class="section-head">
               <div>
@@ -351,22 +353,21 @@
                 <button
                   type="button"
                   class="btn btn-primary"
-                  data-tab="running"
+                  data-record-tab="running"
                 >
                   러닝
                 </button>
                 <button
                   type="button"
                   class="btn btn-secondary"
-                  data-tab="sleep"
+                  data-record-tab="sleep"
                 >
                   수면
                 </button>
               </div>
             </div>
 
-            <!-- Running Form -->
-            <article class="card card-full" data-tab-panel="running">
+            <article class="card card-full" data-record-panel="running">
               <div class="card-body">
                 <div class="card-title">
                   <div>
@@ -396,180 +397,73 @@
                   <div class="form-grid">
                     <div class="field">
                       <label for="runDate">날짜</label>
-                      <input
-                        class="input"
-                        type="date"
-                        id="runDate"
-                        name="runDate"
-                        required
-                      />
+                      <input class="input" type="date" id="runDate" name="runDate" required />
                     </div>
 
                     <div class="field">
                       <label for="distanceKm">총 거리(km)</label>
-                      <input
-                        class="input"
-                        type="number"
-                        id="distanceKm"
-                        name="distanceKm"
-                        step="0.01"
-                        min="0"
-                        placeholder="예: 5.23"
-                        required
-                      />
+                      <input class="input" type="number" id="distanceKm" name="distanceKm" step="0.01" min="0" placeholder="예: 5.23" required />
                     </div>
 
                     <div class="field">
                       <label for="durationMin">시간(분)</label>
-                      <input
-                        class="input"
-                        type="number"
-                        id="durationMin"
-                        name="durationMin"
-                        step="1"
-                        min="0"
-                        placeholder="예: 32"
-                        required
-                      />
+                      <input class="input" type="number" id="durationMin" name="durationMin" step="1" min="0" placeholder="예: 32" required />
                     </div>
 
                     <div class="field">
                       <label for="avgPace">평균 페이스</label>
-                      <input
-                        class="input"
-                        type="text"
-                        id="avgPace"
-                        name="avgPace"
-                        placeholder="예: 6:05"
-                      />
+                      <input class="input" type="text" id="avgPace" name="avgPace" placeholder="예: 6:05" />
                     </div>
 
                     <div class="field">
                       <label for="calories">총 칼로리(kcal)</label>
-                      <input
-                        class="input"
-                        type="number"
-                        id="calories"
-                        name="calories"
-                        step="1"
-                        min="0"
-                        placeholder="예: 420"
-                      />
+                      <input class="input" type="number" id="calories" name="calories" step="1" min="0" placeholder="예: 420" />
                     </div>
 
                     <div class="field">
                       <label for="avgSpeed">평균 속력(km/h)</label>
-                      <input
-                        class="input"
-                        type="number"
-                        id="avgSpeed"
-                        name="avgSpeed"
-                        step="0.1"
-                        min="0"
-                        placeholder="예: 9.8"
-                      />
+                      <input class="input" type="number" id="avgSpeed" name="avgSpeed" step="0.1" min="0" placeholder="예: 9.8" />
                     </div>
 
                     <div class="field">
                       <label for="avgHeartRate">평균 심박수(bpm)</label>
-                      <input
-                        class="input"
-                        type="number"
-                        id="avgHeartRate"
-                        name="avgHeartRate"
-                        step="1"
-                        min="0"
-                        placeholder="예: 148"
-                      />
+                      <input class="input" type="number" id="avgHeartRate" name="avgHeartRate" step="1" min="0" placeholder="예: 148" />
                     </div>
 
                     <div class="field">
                       <label for="maxHeartRate">최대 심박수(bpm)</label>
-                      <input
-                        class="input"
-                        type="number"
-                        id="maxHeartRate"
-                        name="maxHeartRate"
-                        step="1"
-                        min="0"
-                        placeholder="예: 176"
-                      />
+                      <input class="input" type="number" id="maxHeartRate" name="maxHeartRate" step="1" min="0" placeholder="예: 176" />
                     </div>
 
                     <div class="field">
                       <label for="cadence">케이던스(spm)</label>
-                      <input
-                        class="input"
-                        type="number"
-                        id="cadence"
-                        name="cadence"
-                        step="1"
-                        min="0"
-                        placeholder="예: 172"
-                      />
+                      <input class="input" type="number" id="cadence" name="cadence" step="1" min="0" placeholder="예: 172" />
                     </div>
 
                     <div class="field">
                       <label for="strideLength">평균 보폭(m)</label>
-                      <input
-                        class="input"
-                        type="number"
-                        id="strideLength"
-                        name="strideLength"
-                        step="0.01"
-                        min="0"
-                        placeholder="예: 0.98"
-                      />
+                      <input class="input" type="number" id="strideLength" name="strideLength" step="0.01" min="0" placeholder="예: 0.98" />
                     </div>
 
                     <div class="field">
                       <label for="verticalRatio">수직 비율(%)</label>
-                      <input
-                        class="input"
-                        type="number"
-                        id="verticalRatio"
-                        name="verticalRatio"
-                        step="0.1"
-                        min="0"
-                        placeholder="예: 8.4"
-                      />
+                      <input class="input" type="number" id="verticalRatio" name="verticalRatio" step="0.1" min="0" placeholder="예: 8.4" />
                     </div>
 
                     <div class="field">
-                      <label for="groundContactTime">
-                        지면 접촉 시간(ms)
-                      </label>
-                      <input
-                        class="input"
-                        type="number"
-                        id="groundContactTime"
-                        name="groundContactTime"
-                        step="1"
-                        min="0"
-                        placeholder="예: 255"
-                      />
+                      <label for="groundContactTime">지면 접촉 시간(ms)</label>
+                      <input class="input" type="number" id="groundContactTime" name="groundContactTime" step="1" min="0" placeholder="예: 255" />
                     </div>
 
                     <div class="field field-full">
                       <label for="runMemo">메모</label>
-                      <textarea
-                        class="textarea"
-                        id="runMemo"
-                        name="runMemo"
-                        placeholder="컨디션, 코스, 날씨, 통증 여부 등을 입력"
-                      ></textarea>
+                      <textarea class="textarea" id="runMemo" name="runMemo" placeholder="컨디션, 코스, 날씨, 통증 여부 등을 입력"></textarea>
                     </div>
                   </div>
 
                   <div class="form-actions">
-                    <button type="reset" class="btn btn-secondary">
-                      입력 초기화
-                    </button>
-                    <button
-                      type="submit"
-                      class="btn btn-primary"
-                      id="runningSubmitButton"
-                    >
+                    <button type="reset" class="btn btn-secondary">입력 초기화</button>
+                    <button type="submit" class="btn btn-primary" id="runningSubmitButton">
                       러닝 저장
                     </button>
                   </div>
@@ -577,8 +471,7 @@
               </div>
             </article>
 
-            <!-- Sleep Form -->
-            <article class="card card-full hide" data-tab-panel="sleep">
+            <article class="card card-full hide" data-record-panel="sleep">
               <div class="card-body">
                 <div class="card-title">
                   <div>
@@ -599,117 +492,53 @@
                 </div>
 
                 <form id="sleepForm">
-                  <input
-                    type="hidden"
-                    id="editingSleepId"
-                    name="editingSleepId"
-                  />
+                  <input type="hidden" id="editingSleepId" name="editingSleepId" />
 
                   <div class="form-grid">
                     <div class="field">
                       <label for="sleepDate">날짜</label>
-                      <input
-                        class="input"
-                        type="date"
-                        id="sleepDate"
-                        name="sleepDate"
-                        required
-                      />
+                      <input class="input" type="date" id="sleepDate" name="sleepDate" required />
                     </div>
 
                     <div class="field">
                       <label for="totalSleepMin">총 수면 시간(분)</label>
-                      <input
-                        class="input"
-                        type="number"
-                        id="totalSleepMin"
-                        name="totalSleepMin"
-                        step="1"
-                        min="0"
-                        placeholder="예: 430"
-                        required
-                      />
+                      <input class="input" type="number" id="totalSleepMin" name="totalSleepMin" step="1" min="0" placeholder="예: 430" required />
                     </div>
 
                     <div class="field">
                       <label for="deepSleepMin">깊은 수면(분)</label>
-                      <input
-                        class="input"
-                        type="number"
-                        id="deepSleepMin"
-                        name="deepSleepMin"
-                        step="1"
-                        min="0"
-                        placeholder="예: 72"
-                      />
+                      <input class="input" type="number" id="deepSleepMin" name="deepSleepMin" step="1" min="0" placeholder="예: 72" />
                     </div>
 
                     <div class="field">
                       <label for="remSleepMin">REM 수면(분)</label>
-                      <input
-                        class="input"
-                        type="number"
-                        id="remSleepMin"
-                        name="remSleepMin"
-                        step="1"
-                        min="0"
-                        placeholder="예: 96"
-                      />
+                      <input class="input" type="number" id="remSleepMin" name="remSleepMin" step="1" min="0" placeholder="예: 96" />
                     </div>
 
                     <div class="field">
                       <label for="restingHeartRate">안정시 심박수(bpm)</label>
-                      <input
-                        class="input"
-                        type="number"
-                        id="restingHeartRate"
-                        name="restingHeartRate"
-                        step="1"
-                        min="0"
-                        placeholder="예: 58"
-                      />
+                      <input class="input" type="number" id="restingHeartRate" name="restingHeartRate" step="1" min="0" placeholder="예: 58" />
                     </div>
 
                     <div class="field">
                       <label for="sleepStart">취침 시각</label>
-                      <input
-                        class="input"
-                        type="time"
-                        id="sleepStart"
-                        name="sleepStart"
-                      />
+                      <input class="input" type="time" id="sleepStart" name="sleepStart" />
                     </div>
 
                     <div class="field">
                       <label for="sleepEnd">기상 시각</label>
-                      <input
-                        class="input"
-                        type="time"
-                        id="sleepEnd"
-                        name="sleepEnd"
-                      />
+                      <input class="input" type="time" id="sleepEnd" name="sleepEnd" />
                     </div>
 
                     <div class="field field-full">
                       <label for="sleepMemo">메모</label>
-                      <textarea
-                        class="textarea"
-                        id="sleepMemo"
-                        name="sleepMemo"
-                        placeholder="중간 각성, 음주, 카페인, 낮잠, 컨디션 등을 입력"
-                      ></textarea>
+                      <textarea class="textarea" id="sleepMemo" name="sleepMemo" placeholder="중간 각성, 음주, 카페인, 낮잠, 컨디션 등을 입력"></textarea>
                     </div>
                   </div>
 
                   <div class="form-actions">
-                    <button type="reset" class="btn btn-secondary">
-                      입력 초기화
-                    </button>
-                    <button
-                      type="submit"
-                      class="btn btn-primary"
-                      id="sleepSubmitButton"
-                    >
+                    <button type="reset" class="btn btn-secondary">입력 초기화</button>
+                    <button type="submit" class="btn btn-primary" id="sleepSubmitButton">
                       수면 저장
                     </button>
                   </div>
@@ -720,9 +549,13 @@
         </section>
 
         <!-- =========================
-             History
+             History View
         ========================== -->
-        <section class="section" id="history">
+        <section
+          class="section view-panel hide"
+          id="history"
+          data-view-panel="history"
+        >
           <div class="container">
             <div class="section-head">
               <div>
@@ -813,9 +646,13 @@
         </section>
 
         <!-- =========================
-             Criteria
+             Criteria View
         ========================== -->
-        <section class="section" id="criteria">
+        <section
+          class="section view-panel hide"
+          id="criteria"
+          data-view-panel="criteria"
+        >
           <div class="container">
             <div class="section-head">
               <div>
@@ -835,10 +672,7 @@
                   <div class="card-title">
                     <div>
                       <h3>러닝 점수 기준</h3>
-                      <p>
-                        페이스, 평균 심박, 케이던스, 수직 비율, 지면 접촉
-                        시간
-                      </p>
+                      <p>페이스, 평균 심박, 케이던스, 수직 비율, 지면 접촉 시간</p>
                     </div>
                   </div>
 
@@ -846,8 +680,7 @@
                     <li class="criteria-item">
                       <span class="criteria-key">평균 페이스</span>
                       <span class="criteria-value">
-                        5:00/km 이내 최상, 6:00/km 이내 양호, 7:00/km
-                        이내 보통
+                        5:00/km 이내 최상, 6:00/km 이내 양호, 7:00/km 이내 보통
                       </span>
                     </li>
                     <li class="criteria-item">
@@ -883,9 +716,7 @@
                   <div class="card-title">
                     <div>
                       <h3>수면 점수 기준</h3>
-                      <p>
-                        총 수면, 깊은 수면 비율, REM 수면 비율, 안정시 심박
-                      </p>
+                      <p>총 수면, 깊은 수면 비율, REM 수면 비율, 안정시 심박</p>
                     </div>
                   </div>
 
@@ -917,8 +748,7 @@
                     <li class="criteria-item">
                       <span class="criteria-key">주의</span>
                       <span class="criteria-value">
-                        수면 단계는 기기 추정값이므로 절대 진단값이 아니라
-                        경향값으로 사용
+                        수면 단계는 기기 추정값이므로 절대 진단값이 아니라 경향값으로 사용
                       </span>
                     </li>
                   </ul>
@@ -929,9 +759,6 @@
         </section>
       </main>
 
-      <!-- =========================
-           Footer
-      ========================== -->
       <footer class="footer">
         <div class="container footer-inner">
           <div>RunLog Lab · Manual running & sleep tracker</div>
@@ -940,7 +767,9 @@
       </footer>
 
       <div class="mobile-sticky-input">
-        <a class="btn btn-primary" href="#input">기록 입력하기</a>
+        <button type="button" class="btn btn-primary" data-view-tab="input">
+          기록 입력하기
+        </button>
       </div>
     </div>
 
