@@ -29,6 +29,7 @@
             </button>
             <button type="button" data-view-tab="input">데이터 입력</button>
             <button type="button" data-view-tab="history">기록 내역</button>
+            <button type="button" data-view-tab="trend">그래프 추이</button>
             <button type="button" data-view-tab="criteria">점수 기준표</button>
           </nav>
 
@@ -657,6 +658,88 @@
 
         <section
           class="section view-panel hide"
+          id="trend"
+          data-view-panel="trend"
+        >
+          <div class="container">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker">Trend</p>
+                <h2 class="section-title">그래프 추이</h2>
+                <p class="section-desc">
+                  Supabase에 저장된 기록을 기준으로 1일, 7일, 30일, 60일,
+                  90일, 180일, 전체 기간의 지표 변화를 확인합니다.
+                </p>
+              </div>
+            </div>
+
+            <article class="card card-full trend-card">
+              <div class="card-body">
+                <div class="card-title trend-title-row">
+                  <div>
+                    <h3>기간별 데이터 추이</h3>
+                    <p>1일·7일은 막대와 선을 함께 표시하고, 30일 이상은 선 중심으로 표시합니다.</p>
+                  </div>
+                </div>
+
+                <div class="trend-controls">
+                  <div class="field">
+                    <label for="trendType">데이터 유형</label>
+                    <select class="select" id="trendType">
+                      <option value="running">러닝</option>
+                      <option value="sleep">수면</option>
+                    </select>
+                  </div>
+
+                  <div class="field">
+                    <label for="trendMetric">지표</label>
+                    <select class="select" id="trendMetric"></select>
+                  </div>
+                </div>
+
+                <div class="trend-range-tabs" id="trendRangeTabs" aria-label="그래프 기간 선택">
+                  <button type="button" class="trend-range-button active" data-trend-range="1">1일</button>
+                  <button type="button" class="trend-range-button" data-trend-range="7">7일</button>
+                  <button type="button" class="trend-range-button" data-trend-range="30">30일</button>
+                  <button type="button" class="trend-range-button" data-trend-range="60">60일</button>
+                  <button type="button" class="trend-range-button" data-trend-range="90">90일</button>
+                  <button type="button" class="trend-range-button" data-trend-range="180">180일</button>
+                  <button type="button" class="trend-range-button" data-trend-range="all">전체</button>
+                </div>
+
+                <div class="trend-summary-grid">
+                  <div class="trend-summary-item">
+                    <span>최근값</span>
+                    <strong id="trendLatestValue">-</strong>
+                  </div>
+                  <div class="trend-summary-item">
+                    <span>평균</span>
+                    <strong id="trendAverageValue">-</strong>
+                  </div>
+                  <div class="trend-summary-item">
+                    <span>최고</span>
+                    <strong id="trendMaxValue">-</strong>
+                  </div>
+                  <div class="trend-summary-item">
+                    <span>최저</span>
+                    <strong id="trendMinValue">-</strong>
+                  </div>
+                </div>
+
+                <div class="trend-chart-wrap">
+                  <canvas id="trendChart" aria-label="기록 추이 그래프"></canvas>
+                </div>
+
+                <div class="trend-note" id="trendNote">
+                  표시할 기록이 없으면 해당 유형의 기록을 먼저 입력해줘.
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section
+          class="section view-panel hide"
           id="criteria"
           data-view-panel="criteria"
         >
@@ -788,6 +871,9 @@
         </button>
         <button type="button" data-view-tab="history">
           <span>기록</span>
+        </button>
+        <button type="button" data-view-tab="trend">
+          <span>추이</span>
         </button>
         <button type="button" data-view-tab="criteria">
           <span>기준</span>

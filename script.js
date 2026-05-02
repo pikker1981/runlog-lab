@@ -21,7 +21,40 @@ const state = {
   },
   currentView: "dashboard",
   currentTab: "running",
+  currentTrendType: "running",
+  currentTrendMetric: "distanceKm",
+  currentTrendRange: "1",
 };
+
+const trendMetricConfig = {
+  running: [
+    { key: "distanceKm", label: "총 거리", unit: "km", digits: 2 },
+    { key: "durationMin", label: "시간", unit: "분", digits: 0 },
+    { key: "avgPace", label: "평균 페이스", unit: "분/km", digits: 0, parser: paceToSeconds, formatter: formatPaceSeconds },
+    { key: "calories", label: "총 칼로리", unit: "kcal", digits: 0 },
+    { key: "avgSpeed", label: "평균 속력", unit: "km/h", digits: 1 },
+    { key: "avgHeartRate", label: "평균 심박수", unit: "bpm", digits: 0 },
+    { key: "maxHeartRate", label: "최대 심박수", unit: "bpm", digits: 0 },
+    { key: "cadence", label: "케이던스", unit: "spm", digits: 0 },
+    { key: "strideLength", label: "평균 보폭", unit: "m", digits: 2 },
+    { key: "verticalRatio", label: "수직 비율", unit: "%", digits: 1 },
+    { key: "groundContactTime", label: "지면 접촉 시간", unit: "ms", digits: 0 },
+    { key: "score", label: "앱점수", unit: "점", digits: 0 },
+  ],
+  sleep: [
+    { key: "totalSleepMin", label: "총 수면 시간", unit: "분", digits: 0, formatter: formatDuration },
+    { key: "sleepScore", label: "수면 점수", unit: "점", digits: 0 },
+    { key: "bodyBatteryScore", label: "바디 배터리", unit: "점", digits: 0 },
+    { key: "deepSleepMin", label: "깊은 수면", unit: "분", digits: 0, formatter: formatDuration },
+    { key: "remSleepMin", label: "REM 수면", unit: "분", digits: 0, formatter: formatDuration },
+    { key: "deepSleepRatio", label: "깊은 수면 비율", unit: "%", digits: 1 },
+    { key: "remSleepRatio", label: "REM 수면 비율", unit: "%", digits: 1 },
+    { key: "restingHeartRate", label: "안정시 심박수", unit: "bpm", digits: 0 },
+    { key: "score", label: "앱점수", unit: "점", digits: 0 },
+  ],
+};
+
+let trendAnimationFrameId = null;
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => document.querySelectorAll(selector);
@@ -70,6 +103,16 @@ const sleepEditingBanner = $("#sleepEditingBanner");
 const cancelRunningEditButton = $("#cancelRunningEditButton");
 const cancelSleepEditButton = $("#cancelSleepEditButton");
 
+const trendTypeSelect = $("#trendType");
+const trendMetricSelect = $("#trendMetric");
+const trendRangeTabs = $("#trendRangeTabs");
+const trendChart = $("#trendChart");
+const trendLatestValue = $("#trendLatestValue");
+const trendAverageValue = $("#trendAverageValue");
+const trendMaxValue = $("#trendMaxValue");
+const trendMinValue = $("#trendMinValue");
+const trendNote = $("#trendNote");
+
 document.addEventListener("DOMContentLoaded", async () => {
   bindEvents();
   setTodayDefaults();
@@ -108,6 +151,8 @@ function bindEvents() {
     cancelSleepEditButton.addEventListener("click", cancelSleepEdit);
   }
 
+  bindTrendEvents();
+
   $$("[data-view-tab]").forEach((button) => {
     button.addEventListener("click", () => {
       const targetView = button.dataset.viewTab;
@@ -121,6 +166,11 @@ function bindEvents() {
 
       renderViewTabs();
       renderRecordTabs();
+
+      if (state.currentView === "trend") {
+        requestAnimationFrame(renderTrendChart);
+      }
+
       scrollToCurrentView();
     });
   });
@@ -596,6 +646,8 @@ function render() {
   renderDashboard();
   renderPeriodSummary();
   renderLatestSummary();
+  renderTrendMetricOptions();
+  renderTrendChart();
 }
 
 function renderViewTabs() {
@@ -886,6 +938,501 @@ async function handleReset() {
     console.error("전체 초기화 실패", error);
     alert("전체 초기화에 실패했습니다.");
   }
+}
+
+
+function bindTrendEvents() {
+  if (trendTypeSelect) {
+    trendTypeSelect.addEventListener("change", () => {
+      state.currentTrendType = trendTypeSelect.value;
+      state.currentTrendMetric = trendMetricConfig[state.currentTrendType][0].key;
+      renderTrendMetricOptions();
+      renderTrendChart();
+    });
+  }
+
+  if (trendMetricSelect) {
+    trendMetricSelect.addEventListener("change", () => {
+      state.currentTrendMetric = trendMetricSelect.value;
+      renderTrendChart();
+    });
+  }
+
+  if (trendRangeTabs) {
+    trendRangeTabs.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-trend-range]");
+      if (!button) return;
+
+      state.currentTrendRange = button.dataset.trendRange;
+
+      $$("[data-trend-range]").forEach((item) => {
+        item.classList.toggle("active", item === button);
+      });
+
+      renderTrendChart();
+    });
+  }
+
+  window.addEventListener("resize", debounce(renderTrendChart, 160));
+}
+
+function renderTrendMetricOptions() {
+  if (!trendMetricSelect) return;
+
+  const metrics = trendMetricConfig[state.currentTrendType] || [];
+
+  if (!metrics.length) return;
+
+  const hasMetric = metrics.some((metric) => metric.key === state.currentTrendMetric);
+
+  if (!hasMetric) {
+    state.currentTrendMetric = metrics[0].key;
+  }
+
+  trendMetricSelect.innerHTML = metrics
+    .map((metric) => {
+      const selected = metric.key === state.currentTrendMetric ? "selected" : "";
+      return `<option value="${metric.key}" ${selected}>${metric.label}</option>`;
+    })
+    .join("");
+
+  if (trendTypeSelect) {
+    trendTypeSelect.value = state.currentTrendType;
+  }
+}
+
+function renderTrendChart() {
+  if (!trendChart) return;
+
+  const data = getTrendData();
+  updateTrendSummary(data);
+  resizeTrendCanvas();
+
+  if (trendAnimationFrameId) {
+    cancelAnimationFrame(trendAnimationFrameId);
+  }
+
+  animateTrendChart(data);
+}
+
+function getTrendData() {
+  const metric = getCurrentTrendMetric();
+  const sourceRecords = state.records[state.currentTrendType] || [];
+
+  const grouped = new Map();
+
+  sourceRecords.forEach((record) => {
+    const date = record.date;
+    if (!date) return;
+
+    const value = getTrendMetricValue(record, metric);
+    if (!Number.isFinite(value) || value <= 0) return;
+
+    const dateKey = String(date).slice(0, 10);
+
+    if (!grouped.has(dateKey)) {
+      grouped.set(dateKey, []);
+    }
+
+    grouped.get(dateKey).push(value);
+  });
+
+  let data = Array.from(grouped.entries())
+    .map(([date, values]) => ({
+      date,
+      value: values.reduce((acc, value) => acc + value, 0) / values.length,
+    }))
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  if (state.currentTrendRange === "all" || data.length === 0) {
+    return data;
+  }
+
+  const days = Number(state.currentTrendRange);
+  const latest = new Date(data[data.length - 1].date);
+  latest.setHours(23, 59, 59, 999);
+
+  const start = new Date(latest);
+  start.setDate(start.getDate() - days + 1);
+  start.setHours(0, 0, 0, 0);
+
+  data = data.filter((item) => {
+    const date = new Date(item.date);
+    if (Number.isNaN(date.getTime())) return false;
+    date.setHours(0, 0, 0, 0);
+    return date >= start && date <= latest;
+  });
+
+  return data;
+}
+
+function getTrendMetricValue(record, metric) {
+  if (metric.parser) {
+    return metric.parser(record[metric.key]);
+  }
+
+  return toNumber(record[metric.key]);
+}
+
+function updateTrendSummary(data) {
+  const metric = getCurrentTrendMetric();
+
+  if (!trendLatestValue || !trendAverageValue || !trendMaxValue || !trendMinValue) return;
+
+  if (!data.length) {
+    trendLatestValue.textContent = "-";
+    trendAverageValue.textContent = "-";
+    trendMaxValue.textContent = "-";
+    trendMinValue.textContent = "-";
+
+    if (trendNote) {
+      trendNote.textContent = "표시할 기록이 없습니다. 해당 유형의 기록을 먼저 입력해줘.";
+    }
+
+    return;
+  }
+
+  const values = data.map((item) => item.value);
+  const latest = data[data.length - 1].value;
+  const averageValue = values.reduce((acc, value) => acc + value, 0) / values.length;
+
+  trendLatestValue.textContent = formatTrendValue(latest, metric);
+  trendAverageValue.textContent = formatTrendValue(averageValue, metric);
+  trendMaxValue.textContent = formatTrendValue(Math.max(...values), metric);
+  trendMinValue.textContent = formatTrendValue(Math.min(...values), metric);
+
+  if (trendNote) {
+    const rangeLabel = getTrendRangeLabel();
+    const chartType = state.currentTrendRange === "1" || state.currentTrendRange === "7"
+      ? "막대 + 선"
+      : "선";
+
+    trendNote.textContent = `${rangeLabel} · ${metric.label} · ${chartType} 그래프로 표시 중`;
+  }
+}
+
+function resizeTrendCanvas() {
+  const wrapper = trendChart.parentElement;
+  const width = Math.max(280, wrapper ? wrapper.clientWidth - 28 : 720);
+  const height = window.innerWidth <= 900 ? 330 : 420;
+  const dpr = window.devicePixelRatio || 1;
+
+  trendChart.style.width = `${width}px`;
+  trendChart.style.height = `${height}px`;
+  trendChart.width = Math.floor(width * dpr);
+  trendChart.height = Math.floor(height * dpr);
+
+  const ctx = trendChart.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function animateTrendChart(data) {
+  const startedAt = performance.now();
+  const duration = 850;
+
+  function frame(now) {
+    const progress = Math.min((now - startedAt) / duration, 1);
+    const eased = easeOutCubic(progress);
+
+    drawTrendChart(data, eased);
+
+    if (progress < 1) {
+      trendAnimationFrameId = requestAnimationFrame(frame);
+    }
+  }
+
+  trendAnimationFrameId = requestAnimationFrame(frame);
+}
+
+function drawTrendChart(data, progress) {
+  const ctx = trendChart.getContext("2d");
+  const width = parseFloat(trendChart.style.width) || 720;
+  const height = parseFloat(trendChart.style.height) || 420;
+
+  ctx.clearRect(0, 0, width, height);
+
+  const padding = {
+    top: 28,
+    right: 22,
+    bottom: 54,
+    left: 54,
+  };
+
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+
+  drawTrendGrid(ctx, padding, chartWidth, chartHeight);
+
+  if (!data.length) {
+    drawTrendEmpty(ctx, width, height);
+    return;
+  }
+
+  const values = data.map((item) => item.value);
+  const rawMin = Math.min(...values);
+  const rawMax = Math.max(...values);
+  const diff = rawMax - rawMin || Math.max(rawMax, 1);
+  const min = Math.max(0, rawMin - diff * 0.12);
+  const max = rawMax + diff * 0.12;
+
+  const points = data.map((item, index) => {
+    const x = data.length === 1
+      ? padding.left + chartWidth / 2
+      : padding.left + (chartWidth * index) / (data.length - 1);
+
+    const ratio = (item.value - min) / (max - min || 1);
+    const y = padding.top + chartHeight - ratio * chartHeight;
+
+    return { ...item, x, y };
+  });
+
+  drawTrendYAxis(ctx, padding, chartHeight, min, max);
+  drawTrendXAxis(ctx, points, padding, chartHeight);
+
+  if (state.currentTrendRange === "1" || state.currentTrendRange === "7") {
+    drawTrendBars(ctx, points, padding, chartHeight, progress);
+  }
+
+  drawTrendLine(ctx, points, progress);
+  drawTrendDots(ctx, points, progress);
+}
+
+function drawTrendGrid(ctx, padding, chartWidth, chartHeight) {
+  ctx.save();
+  ctx.strokeStyle = "rgba(148, 163, 184, 0.14)";
+  ctx.lineWidth = 1;
+
+  for (let i = 0; i <= 4; i += 1) {
+    const y = padding.top + (chartHeight / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(padding.left + chartWidth, y);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = "rgba(148, 163, 184, 0.26)";
+  ctx.beginPath();
+  ctx.moveTo(padding.left, padding.top);
+  ctx.lineTo(padding.left, padding.top + chartHeight);
+  ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawTrendYAxis(ctx, padding, chartHeight, min, max) {
+  ctx.save();
+  ctx.fillStyle = "rgba(203, 213, 225, 0.76)";
+  ctx.font = "12px Pretendard, system-ui, sans-serif";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+
+  for (let i = 0; i <= 4; i += 1) {
+    const value = max - ((max - min) / 4) * i;
+    const y = padding.top + (chartHeight / 4) * i;
+    ctx.fillText(formatTrendAxisValue(value), padding.left - 8, y);
+  }
+
+  ctx.restore();
+}
+
+function drawTrendXAxis(ctx, points, padding, chartHeight) {
+  ctx.save();
+  ctx.fillStyle = "rgba(203, 213, 225, 0.76)";
+  ctx.font = "12px Pretendard, system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+
+  const maxLabelCount = window.innerWidth <= 900 ? 4 : 7;
+  const step = Math.max(1, Math.ceil(points.length / maxLabelCount));
+
+  points.forEach((point, index) => {
+    const isLast = index === points.length - 1;
+    if (index % step !== 0 && !isLast) return;
+    ctx.fillText(formatShortDate(point.date), point.x, padding.top + chartHeight + 16);
+  });
+
+  ctx.restore();
+}
+
+function drawTrendBars(ctx, points, padding, chartHeight, progress) {
+  ctx.save();
+  const baseline = padding.top + chartHeight;
+  const gap = points.length > 1 ? points[1].x - points[0].x : 86;
+  const barWidth = Math.min(48, Math.max(22, gap * 0.42));
+
+  points.forEach((point) => {
+    const animatedHeight = (baseline - point.y) * progress;
+    const x = point.x - barWidth / 2;
+    const y = baseline - animatedHeight;
+
+    const gradient = ctx.createLinearGradient(0, y, 0, baseline);
+    gradient.addColorStop(0, "rgba(163, 230, 53, 0.46)");
+    gradient.addColorStop(1, "rgba(163, 230, 53, 0.08)");
+
+    ctx.fillStyle = gradient;
+    drawRoundedRect(ctx, x, y, barWidth, animatedHeight, 9);
+    ctx.fill();
+  });
+
+  ctx.restore();
+}
+
+function drawTrendLine(ctx, points, progress) {
+  if (!points.length) return;
+
+  ctx.save();
+  ctx.strokeStyle = "#a3e635";
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.shadowColor = "rgba(163, 230, 53, 0.34)";
+  ctx.shadowBlur = 10;
+
+  const totalSegments = Math.max(points.length - 1, 1);
+  const animatedLength = totalSegments * progress;
+
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+
+  for (let i = 1; i < points.length; i += 1) {
+    if (i <= Math.floor(animatedLength)) {
+      ctx.lineTo(points[i].x, points[i].y);
+    } else if (i === Math.floor(animatedLength) + 1) {
+      const localProgress = animatedLength - Math.floor(animatedLength);
+      const prev = points[i - 1];
+      const next = points[i];
+      const x = prev.x + (next.x - prev.x) * localProgress;
+      const y = prev.y + (next.y - prev.y) * localProgress;
+      ctx.lineTo(x, y);
+      break;
+    }
+  }
+
+  if (points.length === 1) {
+    ctx.lineTo(points[0].x, points[0].y);
+  }
+
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawTrendDots(ctx, points, progress) {
+  ctx.save();
+
+  points.forEach((point, index) => {
+    const dotProgress = Math.max(0, Math.min(1, progress * points.length - index));
+    if (dotProgress <= 0) return;
+
+    ctx.beginPath();
+    ctx.fillStyle = "#0b0f14";
+    ctx.strokeStyle = "#a3e635";
+    ctx.lineWidth = 3;
+    ctx.arc(point.x, point.y, 5 * dotProgress, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  });
+
+  ctx.restore();
+}
+
+function drawTrendEmpty(ctx, width, height) {
+  ctx.save();
+  ctx.fillStyle = "rgba(203, 213, 225, 0.8)";
+  ctx.font = "800 15px Pretendard, system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("표시할 기록이 없습니다.", width / 2, height / 2);
+  ctx.restore();
+}
+
+function drawRoundedRect(ctx, x, y, width, height, radius) {
+  const safeHeight = Math.max(0, height);
+  const safeRadius = Math.min(radius, safeHeight / 2, width / 2);
+
+  ctx.beginPath();
+  ctx.moveTo(x + safeRadius, y);
+  ctx.lineTo(x + width - safeRadius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+  ctx.lineTo(x + width, y + safeHeight - safeRadius);
+  ctx.quadraticCurveTo(x + width, y + safeHeight, x + width - safeRadius, y + safeHeight);
+  ctx.lineTo(x + safeRadius, y + safeHeight);
+  ctx.quadraticCurveTo(x, y + safeHeight, x, y + safeHeight - safeRadius);
+  ctx.lineTo(x, y + safeRadius);
+  ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+  ctx.closePath();
+}
+
+function getCurrentTrendMetric() {
+  const metrics = trendMetricConfig[state.currentTrendType] || [];
+  return metrics.find((metric) => metric.key === state.currentTrendMetric) || metrics[0];
+}
+
+function formatTrendValue(value, metric) {
+  if (!Number.isFinite(value)) return "-";
+
+  if (metric.formatter) {
+    return metric.formatter(value);
+  }
+
+  const formatted = value.toLocaleString("ko-KR", {
+    maximumFractionDigits: metric.digits ?? 1,
+  });
+
+  return metric.unit ? `${formatted}${metric.unit}` : formatted;
+}
+
+function formatTrendAxisValue(value) {
+  if (!Number.isFinite(value)) return "-";
+
+  if (Math.abs(value) >= 1000) {
+    return Math.round(value).toLocaleString("ko-KR");
+  }
+
+  if (Math.abs(value) >= 100) {
+    return value.toFixed(0);
+  }
+
+  if (Math.abs(value) >= 10) {
+    return value.toFixed(1).replace(/\.0$/, "");
+  }
+
+  return value.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function formatPaceSeconds(seconds) {
+  const total = Math.round(toNumber(seconds));
+  if (total <= 0) return "-";
+
+  const minutes = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${minutes}:${String(secs).padStart(2, "0")}`;
+}
+
+function getTrendRangeLabel() {
+  if (state.currentTrendRange === "all") return "전체 추이";
+  return `${state.currentTrendRange}일 추이`;
+}
+
+function formatShortDate(dateString) {
+  if (!dateString) return "-";
+
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return dateString;
+
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function easeOutCubic(value) {
+  return 1 - Math.pow(1 - value, 3);
+}
+
+function debounce(callback, delay) {
+  let timer = null;
+
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => callback(...args), delay);
+  };
 }
 
 function toNumber(value) {
