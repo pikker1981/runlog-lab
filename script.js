@@ -1,7 +1,24 @@
+const SUPABASE_URL = "https://snpdddkwtqmihhtfentt.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNucGRkZGt3dHFtaWhodGZlbnR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3NjI5NjgsImV4cCI6MjA5MzMzODk2OH0.bO9ttF6D1OeNmpuENIzMh0Urv3LOIJYlyg-IdexjUjQ";
+
 const STORAGE_KEY = "runlog_lab_records_v1";
 
+const hasSupabaseConfig =
+  SUPABASE_URL &&
+  SUPABASE_ANON_KEY &&
+  !SUPABASE_URL.includes("여기에") &&
+  !SUPABASE_ANON_KEY.includes("여기에") &&
+  window.supabase;
+
+const supabaseClient = hasSupabaseConfig
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
 const state = {
-  records: loadRecords(),
+  records: {
+    running: [],
+    sleep: [],
+  },
   currentView: "dashboard",
   currentTab: "running",
 };
@@ -53,9 +70,20 @@ const sleepEditingBanner = $("#sleepEditingBanner");
 const cancelRunningEditButton = $("#cancelRunningEditButton");
 const cancelSleepEditButton = $("#cancelSleepEditButton");
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   bindEvents();
   setTodayDefaults();
+
+  if (!hasSupabaseConfig) {
+    alert(
+      "Supabase 설정값이 없습니다. script.js 상단의 SUPABASE_URL, SUPABASE_ANON_KEY를 입력해줘."
+    );
+    state.records = loadLocalFallbackRecords();
+    render();
+    return;
+  }
+
+  await loadRemoteRecords();
   render();
 });
 
@@ -105,7 +133,38 @@ function bindEvents() {
   });
 }
 
-function loadRecords() {
+async function loadRemoteRecords() {
+  try {
+    const [runningResponse, sleepResponse] = await Promise.all([
+      supabaseClient
+        .from("running_records")
+        .select("*")
+        .order("record_date", { ascending: false })
+        .order("created_at", { ascending: false }),
+
+      supabaseClient
+        .from("sleep_records")
+        .select("*")
+        .order("record_date", { ascending: false })
+        .order("created_at", { ascending: false }),
+    ]);
+
+    if (runningResponse.error) throw runningResponse.error;
+    if (sleepResponse.error) throw sleepResponse.error;
+
+    state.records.running = runningResponse.data.map(mapRunningFromDb);
+    state.records.sleep = sleepResponse.data.map(mapSleepFromDb);
+
+    saveLocalFallbackRecords();
+  } catch (error) {
+    console.error("Supabase 데이터를 불러오지 못했습니다.", error);
+    alert("Supabase 데이터를 불러오지 못했습니다. 콘솔 오류를 확인해줘.");
+
+    state.records = loadLocalFallbackRecords();
+  }
+}
+
+function loadLocalFallbackRecords() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
 
@@ -123,7 +182,7 @@ function loadRecords() {
       sleep: Array.isArray(parsed.sleep) ? parsed.sleep : [],
     };
   } catch (error) {
-    console.error("저장 데이터를 불러오지 못했습니다.", error);
+    console.error("로컬 백업 데이터를 불러오지 못했습니다.", error);
 
     return {
       running: [],
@@ -132,18 +191,100 @@ function loadRecords() {
   }
 }
 
-function saveRecords() {
+function saveLocalFallbackRecords() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.records));
 }
 
-function handleRunningSubmit(event) {
+function mapRunningFromDb(row) {
+  return {
+    id: row.id,
+    date: row.record_date,
+    distanceKm: toNumber(row.distance_km),
+    durationMin: toNumber(row.duration_min),
+    avgPace: row.avg_pace || "",
+    calories: toNumber(row.calories),
+    avgSpeed: toNumber(row.avg_speed),
+    avgHeartRate: toNumber(row.avg_heart_rate),
+    maxHeartRate: toNumber(row.max_heart_rate),
+    cadence: toNumber(row.cadence),
+    strideLength: toNumber(row.stride_length),
+    verticalRatio: toNumber(row.vertical_ratio),
+    groundContactTime: toNumber(row.ground_contact_time),
+    memo: row.memo || "",
+    score: toNumber(row.score),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapSleepFromDb(row) {
+  return {
+    id: row.id,
+    date: row.record_date,
+    totalSleepMin: toNumber(row.total_sleep_min),
+    sleepScore: toNumber(row.sleep_score),
+    bodyBatteryScore: toNumber(row.body_battery_score),
+    deepSleepMin: toNumber(row.deep_sleep_min),
+    remSleepMin: toNumber(row.rem_sleep_min),
+    deepSleepRatio: toNumber(row.deep_sleep_ratio),
+    remSleepRatio: toNumber(row.rem_sleep_ratio),
+    restingHeartRate: toNumber(row.resting_heart_rate),
+    sleepStart: row.sleep_start || "",
+    sleepEnd: row.sleep_end || "",
+    memo: row.memo || "",
+    score: toNumber(row.score),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapRunningToDb(record) {
+  return {
+    record_date: record.date,
+    distance_km: record.distanceKm,
+    duration_min: record.durationMin,
+    avg_pace: record.avgPace,
+    calories: record.calories,
+    avg_speed: record.avgSpeed,
+    avg_heart_rate: record.avgHeartRate,
+    max_heart_rate: record.maxHeartRate,
+    cadence: record.cadence,
+    stride_length: record.strideLength,
+    vertical_ratio: record.verticalRatio,
+    ground_contact_time: record.groundContactTime,
+    memo: record.memo,
+    score: record.score,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function mapSleepToDb(record) {
+  return {
+    record_date: record.date,
+    total_sleep_min: record.totalSleepMin,
+    sleep_score: record.sleepScore,
+    body_battery_score: record.bodyBatteryScore,
+    deep_sleep_min: record.deepSleepMin,
+    rem_sleep_min: record.remSleepMin,
+    deep_sleep_ratio: record.deepSleepRatio,
+    rem_sleep_ratio: record.remSleepRatio,
+    resting_heart_rate: record.restingHeartRate,
+    sleep_start: record.sleepStart || null,
+    sleep_end: record.sleepEnd || null,
+    memo: record.memo,
+    score: record.score,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+async function handleRunningSubmit(event) {
   event.preventDefault();
 
   const formData = new FormData(runningForm);
   const editId = editingRunningId ? editingRunningId.value : "";
 
   const record = {
-    id: editId || createId(),
+    id: editId || "",
     date: formData.get("runDate"),
     distanceKm: toNumber(formData.get("distanceKm")),
     durationMin: toNumber(formData.get("durationMin")),
@@ -157,10 +298,6 @@ function handleRunningSubmit(event) {
     verticalRatio: toNumber(formData.get("verticalRatio")),
     groundContactTime: toNumber(formData.get("groundContactTime")),
     memo: sanitizeText(formData.get("runMemo")),
-    createdAt: editId
-      ? getExistingCreatedAt("running", editId)
-      : new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
   };
 
   if (!record.date || record.distanceKm <= 0 || record.durationMin <= 0) {
@@ -170,19 +307,43 @@ function handleRunningSubmit(event) {
 
   record.score = calculateRunningScore(record);
 
-  if (editId) {
-    state.records.running = state.records.running.map((item) =>
-      item.id === editId ? record : item
-    );
-  } else {
-    state.records.running.unshift(record);
-  }
+  try {
+    if (editId) {
+      const { data, error } = await supabaseClient
+        .from("running_records")
+        .update(mapRunningToDb(record))
+        .eq("id", editId)
+        .select()
+        .single();
 
-  saveRecords();
-  cancelRunningEdit(false);
-  runningForm.reset();
-  setTodayDefaults();
-  render();
+      if (error) throw error;
+
+      const updatedRecord = mapRunningFromDb(data);
+
+      state.records.running = state.records.running.map((item) =>
+        item.id === editId ? updatedRecord : item
+      );
+    } else {
+      const { data, error } = await supabaseClient
+        .from("running_records")
+        .insert(mapRunningToDb(record))
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      state.records.running.unshift(mapRunningFromDb(data));
+    }
+
+    saveLocalFallbackRecords();
+    cancelRunningEdit(false);
+    runningForm.reset();
+    setTodayDefaults();
+    render();
+  } catch (error) {
+    console.error("러닝 저장 실패", error);
+    alert("러닝 기록 저장에 실패했습니다. Supabase 설정과 RLS 정책을 확인해줘.");
+  }
 }
 
 function startRunningEdit(id) {
@@ -270,7 +431,7 @@ function calculateRunningScore(record) {
   return clamp(Math.round(score), 0, 100);
 }
 
-function handleSleepSubmit(event) {
+async function handleSleepSubmit(event) {
   event.preventDefault();
 
   const formData = new FormData(sleepForm);
@@ -281,7 +442,7 @@ function handleSleepSubmit(event) {
   const remSleepMin = toNumber(formData.get("remSleepMin"));
 
   const record = {
-    id: editId || createId(),
+    id: editId || "",
     date: formData.get("sleepDate"),
     totalSleepMin,
     sleepScore: toNumber(formData.get("sleepScore")),
@@ -292,10 +453,6 @@ function handleSleepSubmit(event) {
     sleepStart: formData.get("sleepStart"),
     sleepEnd: formData.get("sleepEnd"),
     memo: sanitizeText(formData.get("sleepMemo")),
-    createdAt: editId
-      ? getExistingCreatedAt("sleep", editId)
-      : new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
   };
 
   if (!record.date || record.totalSleepMin <= 0) {
@@ -322,19 +479,43 @@ function handleSleepSubmit(event) {
   record.remSleepRatio = getRatio(record.remSleepMin, record.totalSleepMin);
   record.score = calculateSleepScore(record);
 
-  if (editId) {
-    state.records.sleep = state.records.sleep.map((item) =>
-      item.id === editId ? record : item
-    );
-  } else {
-    state.records.sleep.unshift(record);
-  }
+  try {
+    if (editId) {
+      const { data, error } = await supabaseClient
+        .from("sleep_records")
+        .update(mapSleepToDb(record))
+        .eq("id", editId)
+        .select()
+        .single();
 
-  saveRecords();
-  cancelSleepEdit(false);
-  sleepForm.reset();
-  setTodayDefaults();
-  render();
+      if (error) throw error;
+
+      const updatedRecord = mapSleepFromDb(data);
+
+      state.records.sleep = state.records.sleep.map((item) =>
+        item.id === editId ? updatedRecord : item
+      );
+    } else {
+      const { data, error } = await supabaseClient
+        .from("sleep_records")
+        .insert(mapSleepToDb(record))
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      state.records.sleep.unshift(mapSleepFromDb(data));
+    }
+
+    saveLocalFallbackRecords();
+    cancelSleepEdit(false);
+    sleepForm.reset();
+    setTodayDefaults();
+    render();
+  } catch (error) {
+    console.error("수면 저장 실패", error);
+    alert("수면 기록 저장에 실패했습니다. Supabase 설정과 RLS 정책을 확인해줘.");
+  }
 }
 
 function startSleepEdit(id) {
@@ -637,43 +818,74 @@ function renderLatestSummary() {
   latestDate.textContent = `${formatDate(latest.date)} 기준 최신 ${typeLabel} 기록`;
 }
 
-function deleteRunningRecord(id) {
+async function deleteRunningRecord(id) {
   const confirmed = confirm("이 러닝 기록을 삭제할까?");
   if (!confirmed) return;
 
-  state.records.running = state.records.running.filter((record) => record.id !== id);
+  try {
+    const { error } = await supabaseClient
+      .from("running_records")
+      .delete()
+      .eq("id", id);
 
-  saveRecords();
-  render();
+    if (error) throw error;
+
+    state.records.running = state.records.running.filter((record) => record.id !== id);
+    saveLocalFallbackRecords();
+    render();
+  } catch (error) {
+    console.error("러닝 삭제 실패", error);
+    alert("러닝 기록 삭제에 실패했습니다.");
+  }
 }
 
-function deleteSleepRecord(id) {
+async function deleteSleepRecord(id) {
   const confirmed = confirm("이 수면 기록을 삭제할까?");
   if (!confirmed) return;
 
-  state.records.sleep = state.records.sleep.filter((record) => record.id !== id);
+  try {
+    const { error } = await supabaseClient
+      .from("sleep_records")
+      .delete()
+      .eq("id", id);
 
-  saveRecords();
-  render();
+    if (error) throw error;
+
+    state.records.sleep = state.records.sleep.filter((record) => record.id !== id);
+    saveLocalFallbackRecords();
+    render();
+  } catch (error) {
+    console.error("수면 삭제 실패", error);
+    alert("수면 기록 삭제에 실패했습니다.");
+  }
 }
 
-function handleReset() {
+async function handleReset() {
   const confirmed = confirm("모든 러닝/수면 기록을 삭제할까?");
   if (!confirmed) return;
 
-  state.records = {
-    running: [],
-    sleep: [],
-  };
+  try {
+    const [runningResponse, sleepResponse] = await Promise.all([
+      supabaseClient.from("running_records").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
+      supabaseClient.from("sleep_records").delete().neq("id", "00000000-0000-0000-0000-000000000000"),
+    ]);
 
-  saveRecords();
-  cancelRunningEdit(false);
-  cancelSleepEdit(false);
-  render();
-}
+    if (runningResponse.error) throw runningResponse.error;
+    if (sleepResponse.error) throw sleepResponse.error;
 
-function createId() {
-  return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    state.records = {
+      running: [],
+      sleep: [],
+    };
+
+    saveLocalFallbackRecords();
+    cancelRunningEdit(false);
+    cancelSleepEdit(false);
+    render();
+  } catch (error) {
+    console.error("전체 초기화 실패", error);
+    alert("전체 초기화에 실패했습니다.");
+  }
 }
 
 function toNumber(value) {
@@ -855,11 +1067,6 @@ function filterRecentDays(records, days) {
 
     return date >= start && date <= now;
   });
-}
-
-function getExistingCreatedAt(type, id) {
-  const record = state.records[type].find((item) => item.id === id);
-  return record?.createdAt || new Date().toISOString();
 }
 
 function sortRecords() {
