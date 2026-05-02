@@ -1,12 +1,3 @@
-/* =========================
-   RunLog Lab - script.js
-   Feature Update:
-   - View Tabs
-   - Record Tabs
-   - Edit
-   - Weekly / Monthly Summary
-   ========================= */
-
 const STORAGE_KEY = "runlog_lab_records_v1";
 
 const state = {
@@ -14,10 +5,6 @@ const state = {
   currentView: "dashboard",
   currentTab: "running",
 };
-
-/* =========================
-   DOM
-   ========================= */
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => document.querySelectorAll(selector);
@@ -38,6 +25,7 @@ const totalRunCalories = $("#totalRunCalories");
 const avgSleepTime = $("#avgSleepTime");
 const avgDeepSleepRatio = $("#avgDeepSleepRatio");
 const avgRemSleepRatio = $("#avgRemSleepRatio");
+const avgBodyBatteryScore = $("#avgBodyBatteryScore");
 
 const latestScoreValue = $("#latestScoreValue");
 const latestScoreLabel = $("#latestScoreLabel");
@@ -46,7 +34,7 @@ const latestDate = $("#latestDate");
 const weeklyRunDistance = $("#weeklyRunDistance");
 const monthlyRunDistance = $("#monthlyRunDistance");
 const weeklySleepTime = $("#weeklySleepTime");
-const monthlySleepScore = $("#monthlySleepScore");
+const monthlyBodyBatteryScore = $("#monthlyBodyBatteryScore");
 
 const emptyRunning = $("#emptyRunning");
 const emptySleep = $("#emptySleep");
@@ -65,19 +53,11 @@ const sleepEditingBanner = $("#sleepEditingBanner");
 const cancelRunningEditButton = $("#cancelRunningEditButton");
 const cancelSleepEditButton = $("#cancelSleepEditButton");
 
-/* =========================
-   Init
-   ========================= */
-
 document.addEventListener("DOMContentLoaded", () => {
   bindEvents();
   setTodayDefaults();
   render();
 });
-
-/* =========================
-   Events
-   ========================= */
 
 function bindEvents() {
   if (runningForm) {
@@ -125,10 +105,6 @@ function bindEvents() {
   });
 }
 
-/* =========================
-   Storage
-   ========================= */
-
 function loadRecords() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -159,10 +135,6 @@ function loadRecords() {
 function saveRecords() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.records));
 }
-
-/* =========================
-   Running Submit / Edit
-   ========================= */
 
 function handleRunningSubmit(event) {
   event.preventDefault();
@@ -298,10 +270,6 @@ function calculateRunningScore(record) {
   return clamp(Math.round(score), 0, 100);
 }
 
-/* =========================
-   Sleep Submit / Edit
-   ========================= */
-
 function handleSleepSubmit(event) {
   event.preventDefault();
 
@@ -316,6 +284,8 @@ function handleSleepSubmit(event) {
     id: editId || createId(),
     date: formData.get("sleepDate"),
     totalSleepMin,
+    sleepScore: toNumber(formData.get("sleepScore")),
+    bodyBatteryScore: toNumber(formData.get("bodyBatteryScore")),
     deepSleepMin,
     remSleepMin,
     restingHeartRate: toNumber(formData.get("restingHeartRate")),
@@ -330,6 +300,16 @@ function handleSleepSubmit(event) {
 
   if (!record.date || record.totalSleepMin <= 0) {
     alert("수면 날짜와 총 수면 시간을 확인해줘.");
+    return;
+  }
+
+  if (!isScoreInRange(record.sleepScore)) {
+    alert("수면 점수는 0~100 사이로 입력해줘.");
+    return;
+  }
+
+  if (!isScoreInRange(record.bodyBatteryScore)) {
+    alert("바디 배터리 점수는 0~100 사이로 입력해줘.");
     return;
   }
 
@@ -369,6 +349,8 @@ function startSleepEdit(id) {
 
   $("#sleepDate").value = record.date || "";
   $("#totalSleepMin").value = record.totalSleepMin || "";
+  $("#sleepScore").value = record.sleepScore || "";
+  $("#bodyBatteryScore").value = record.bodyBatteryScore || "";
   $("#deepSleepMin").value = record.deepSleepMin || "";
   $("#remSleepMin").value = record.remSleepMin || "";
   $("#restingHeartRate").value = record.restingHeartRate || "";
@@ -396,7 +378,6 @@ function cancelSleepEdit(shouldReset = true) {
 
 function calculateSleepScore(record) {
   let score = 100;
-
   const totalHours = record.totalSleepMin / 60;
 
   if (totalHours >= 7 && totalHours <= 9) score -= 0;
@@ -424,10 +405,6 @@ function calculateSleepScore(record) {
 
   return clamp(Math.round(score), 0, 100);
 }
-
-/* =========================
-   Render
-   ========================= */
 
 function render() {
   sortRecords();
@@ -482,12 +459,8 @@ function renderRunningTable() {
           <td><strong>${record.score}</strong></td>
           <td>
             <div class="table-actions">
-              <button class="btn btn-secondary" onclick="startRunningEdit('${record.id}')">
-                수정
-              </button>
-              <button class="btn btn-danger" onclick="deleteRunningRecord('${record.id}')">
-                삭제
-              </button>
+              <button class="btn btn-secondary" onclick="startRunningEdit('${record.id}')">수정</button>
+              <button class="btn btn-danger" onclick="deleteRunningRecord('${record.id}')">삭제</button>
             </div>
           </td>
         </tr>
@@ -511,18 +484,16 @@ function renderSleepTable() {
         <tr>
           <td><strong>${formatDate(record.date)}</strong></td>
           <td>${formatDuration(record.totalSleepMin)}</td>
+          <td>${formatNullableScore(record.sleepScore)}</td>
+          <td>${formatNullableScore(record.bodyBatteryScore)}</td>
           <td>${formatNumber(record.deepSleepRatio, 1)}%</td>
           <td>${formatNumber(record.remSleepRatio, 1)}%</td>
           <td>${formatNumber(record.restingHeartRate, 0)} bpm</td>
           <td><strong>${record.score}</strong></td>
           <td>
             <div class="table-actions">
-              <button class="btn btn-secondary" onclick="startSleepEdit('${record.id}')">
-                수정
-              </button>
-              <button class="btn btn-danger" onclick="deleteSleepRecord('${record.id}')">
-                삭제
-              </button>
+              <button class="btn btn-secondary" onclick="startSleepEdit('${record.id}')">수정</button>
+              <button class="btn btn-danger" onclick="deleteSleepRecord('${record.id}')">삭제</button>
             </div>
           </td>
         </tr>
@@ -564,7 +535,14 @@ function renderRunningDashboard() {
 function renderSleepDashboard() {
   const records = state.records.sleep;
 
-  setTextAll(avgSleepScoreElements, formatNumber(avg(records, "score"), 0));
+  setTextAll(avgSleepScoreElements, formatNumber(avg(records, "sleepScore"), 0));
+
+  if (avgBodyBatteryScore) {
+    avgBodyBatteryScore.textContent = formatNumber(
+      avg(records, "bodyBatteryScore"),
+      0
+    );
+  }
 
   if (avgSleepTime) {
     avgSleepTime.textContent = formatDuration(avg(records, "totalSleepMin"));
@@ -609,8 +587,11 @@ function renderPeriodSummary() {
     weeklySleepTime.textContent = formatDuration(avg(weeklySleep, "totalSleepMin"));
   }
 
-  if (monthlySleepScore) {
-    monthlySleepScore.textContent = formatNumber(avg(monthlySleep, "score"), 0);
+  if (monthlyBodyBatteryScore) {
+    monthlyBodyBatteryScore.textContent = formatNumber(
+      avg(monthlySleep, "bodyBatteryScore"),
+      0
+    );
   }
 }
 
@@ -642,16 +623,19 @@ function renderLatestSummary() {
     return;
   }
 
+  if (latest.type === "sleep" && latest.sleepScore > 0) {
+    latestScoreValue.textContent = latest.sleepScore;
+    latestScoreLabel.textContent = "Sleep Score";
+    latestDate.textContent = `${formatDate(latest.date)} 기준 최신 수면 기록`;
+    return;
+  }
+
   latestScoreValue.textContent = latest.score;
   latestScoreLabel.textContent = getScoreLabel(latest.score);
 
   const typeLabel = latest.type === "running" ? "러닝" : "수면";
   latestDate.textContent = `${formatDate(latest.date)} 기준 최신 ${typeLabel} 기록`;
 }
-
-/* =========================
-   Delete / Reset
-   ========================= */
 
 function deleteRunningRecord(id) {
   const confirmed = confirm("이 러닝 기록을 삭제할까?");
@@ -688,10 +672,6 @@ function handleReset() {
   render();
 }
 
-/* =========================
-   Helpers
-   ========================= */
-
 function createId() {
   return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
@@ -703,6 +683,11 @@ function toNumber(value) {
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
+}
+
+function isScoreInRange(value) {
+  if (value === 0) return true;
+  return value >= 0 && value <= 100;
 }
 
 function getRatio(part, total) {
@@ -732,6 +717,14 @@ function formatNumber(value, digits = 1) {
   return number.toLocaleString("ko-KR", {
     maximumFractionDigits: digits,
   });
+}
+
+function formatNullableScore(value) {
+  const number = toNumber(value);
+
+  if (number <= 0) return "-";
+
+  return `${formatNumber(number, 0)}점`;
 }
 
 function formatDate(dateString) {
@@ -873,10 +866,6 @@ function sortRecords() {
   state.records.running.sort((a, b) => new Date(b.date) - new Date(a.date));
   state.records.sleep.sort((a, b) => new Date(b.date) - new Date(a.date));
 }
-
-/* =========================
-   Expose functions
-   ========================= */
 
 window.deleteRunningRecord = deleteRunningRecord;
 window.deleteSleepRecord = deleteSleepRecord;
