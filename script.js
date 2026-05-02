@@ -1,12 +1,17 @@
 /* =========================
    RunLog Lab - script.js
-   Feature Update: Edit / Weekly Monthly Summary / Criteria Support
+   Feature Update:
+   - View Tabs
+   - Record Tabs
+   - Edit
+   - Weekly / Monthly Summary
    ========================= */
 
 const STORAGE_KEY = "runlog_lab_records_v1";
 
 const state = {
   records: loadRecords(),
+  currentView: "dashboard",
   currentTab: "running",
 };
 
@@ -95,11 +100,27 @@ function bindEvents() {
     cancelSleepEditButton.addEventListener("click", cancelSleepEdit);
   }
 
-  $$("[data-tab]").forEach((button) => {
+  $$("[data-view-tab]").forEach((button) => {
     button.addEventListener("click", () => {
-      state.currentTab = button.dataset.tab;
-      renderTabs();
-      scrollToInput();
+      const targetView = button.dataset.viewTab;
+      const targetRecordTab = button.dataset.recordTabTarget;
+
+      state.currentView = targetView || "dashboard";
+
+      if (targetRecordTab) {
+        state.currentTab = targetRecordTab;
+      }
+
+      renderViewTabs();
+      renderRecordTabs();
+      scrollToCurrentView();
+    });
+  });
+
+  $$("[data-record-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.currentTab = button.dataset.recordTab;
+      renderRecordTabs();
     });
   });
 }
@@ -164,7 +185,9 @@ function handleRunningSubmit(event) {
     verticalRatio: toNumber(formData.get("verticalRatio")),
     groundContactTime: toNumber(formData.get("groundContactTime")),
     memo: sanitizeText(formData.get("runMemo")),
-    createdAt: editId ? getExistingCreatedAt("running", editId) : new Date().toISOString(),
+    createdAt: editId
+      ? getExistingCreatedAt("running", editId)
+      : new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 
@@ -194,8 +217,11 @@ function startRunningEdit(id) {
   const record = state.records.running.find((item) => item.id === id);
   if (!record || !runningForm) return;
 
+  state.currentView = "input";
   state.currentTab = "running";
-  renderTabs();
+
+  renderViewTabs();
+  renderRecordTabs();
 
   $("#runDate").value = record.date || "";
   $("#distanceKm").value = record.distanceKm || "";
@@ -215,7 +241,7 @@ function startRunningEdit(id) {
   if (runningSubmitButton) runningSubmitButton.textContent = "러닝 수정 저장";
   if (runningEditingBanner) runningEditingBanner.classList.add("active");
 
-  scrollToInput();
+  scrollToCurrentView();
 }
 
 function cancelRunningEdit(shouldReset = true) {
@@ -296,7 +322,9 @@ function handleSleepSubmit(event) {
     sleepStart: formData.get("sleepStart"),
     sleepEnd: formData.get("sleepEnd"),
     memo: sanitizeText(formData.get("sleepMemo")),
-    createdAt: editId ? getExistingCreatedAt("sleep", editId) : new Date().toISOString(),
+    createdAt: editId
+      ? getExistingCreatedAt("sleep", editId)
+      : new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 
@@ -333,8 +361,11 @@ function startSleepEdit(id) {
   const record = state.records.sleep.find((item) => item.id === id);
   if (!record || !sleepForm) return;
 
+  state.currentView = "input";
   state.currentTab = "sleep";
-  renderTabs();
+
+  renderViewTabs();
+  renderRecordTabs();
 
   $("#sleepDate").value = record.date || "";
   $("#totalSleepMin").value = record.totalSleepMin || "";
@@ -349,7 +380,7 @@ function startSleepEdit(id) {
   if (sleepSubmitButton) sleepSubmitButton.textContent = "수면 수정 저장";
   if (sleepEditingBanner) sleepEditingBanner.classList.add("active");
 
-  scrollToInput();
+  scrollToCurrentView();
 }
 
 function cancelSleepEdit(shouldReset = true) {
@@ -400,7 +431,8 @@ function calculateSleepScore(record) {
 
 function render() {
   sortRecords();
-  renderTabs();
+  renderViewTabs();
+  renderRecordTabs();
   renderRunningTable();
   renderSleepTable();
   renderDashboard();
@@ -408,16 +440,27 @@ function render() {
   renderLatestSummary();
 }
 
-function renderTabs() {
-  $$("[data-tab]").forEach((button) => {
-    const isActive = button.dataset.tab === state.currentTab;
+function renderViewTabs() {
+  $$("[data-view-tab]").forEach((button) => {
+    const isActive = button.dataset.viewTab === state.currentView;
+    button.classList.toggle("active", isActive);
+  });
+
+  $$("[data-view-panel]").forEach((panel) => {
+    panel.classList.toggle("hide", panel.dataset.viewPanel !== state.currentView);
+  });
+}
+
+function renderRecordTabs() {
+  $$("[data-record-tab]").forEach((button) => {
+    const isActive = button.dataset.recordTab === state.currentTab;
 
     button.classList.toggle("btn-primary", isActive);
     button.classList.toggle("btn-secondary", !isActive);
   });
 
-  $$("[data-tab-panel]").forEach((panel) => {
-    panel.classList.toggle("hide", panel.dataset.tabPanel !== state.currentTab);
+  $$("[data-record-panel]").forEach((panel) => {
+    panel.classList.toggle("hide", panel.dataset.recordPanel !== state.currentTab);
   });
 }
 
@@ -795,12 +838,12 @@ function setTodayDefaults() {
   }
 }
 
-function scrollToInput() {
-  const inputSection = $("#input");
+function scrollToCurrentView() {
+  const targetPanel = $(`[data-view-panel="${state.currentView}"]`);
 
-  if (!inputSection) return;
+  if (!targetPanel) return;
 
-  inputSection.scrollIntoView({
+  targetPanel.scrollIntoView({
     behavior: "smooth",
     block: "start",
   });
