@@ -1,335 +1,746 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>RunLog Lab</title>
+    <title>RunLog Lab</title>
 
-  <link rel="stylesheet" href="./style.css" />
-</head>
+    <meta
+      name="description"
+      content="러닝과 수면 데이터를 수동으로 기록하고 객관 지표로 분석하는 개인 대시보드"
+    />
 
-<body>
-  <div class="app">
+    <link rel="stylesheet" href="./style.css" />
+  </head>
 
-    <header class="site-header">
-      <a href="#" class="brand" aria-label="RunLog Lab home">
-        <span class="brand-mark">R</span>
-        <span>RunLog Lab</span>
-      </a>
+  <body>
+    <div class="app">
+      <!-- =========================
+           Header
+      ========================== -->
+      <header class="header">
+        <div class="container header-inner">
+          <a href="#" class="logo" aria-label="RunLog Lab 홈">
+            <span class="logo-mark">R</span>
+            <span class="logo-text">RunLog Lab</span>
+          </a>
 
-      <nav class="top-nav" aria-label="Primary navigation">
-        <button class="nav-pill active" data-view="dashboard">Dashboard</button>
-        <button class="nav-pill" data-view="sleep">Sleep</button>
-        <button class="nav-pill" data-view="run">Run</button>
-        <button class="nav-pill" data-view="records">Records</button>
-      </nav>
+          <nav class="nav" aria-label="메인 메뉴">
+            <a href="#dashboard">Dashboard</a>
+            <a href="#input">Input</a>
+            <a href="#history">History</a>
+          </nav>
 
-      <div class="header-actions">
-        <button id="exportBtn" class="button button-secondary" type="button">Backup</button>
-        <label class="button button-dark file-button">
-          Restore
-          <input id="importFile" type="file" accept="application/json" />
-        </label>
-      </div>
-    </header>
-
-    <main>
-      <section class="hero">
-        <p class="eyebrow">Personal Garmin Manual Tracker</p>
-        <h1>러닝과 수면을 직접 기록하고, 회복과 훈련 효율을 본다.</h1>
-        <p class="hero-desc">
-          Garmin 앱에서 확인한 수면·러닝 데이터를 수동 입력하면,
-          회복 점수, 평균 페이스, 평균 속력, 심박 효율, 기록 추이를 계산합니다.
-        </p>
-
-        <div class="hero-actions">
-          <button class="button button-dark" data-view-shortcut="sleep" type="button">수면 입력</button>
-          <button class="button button-primary" data-view-shortcut="run" type="button">러닝 입력</button>
-        </div>
-      </section>
-
-      <!-- Dashboard -->
-      <section id="view-dashboard" class="view active">
-        <div class="section-heading">
-          <p class="eyebrow">Overview</p>
-          <h2>대시보드</h2>
-        </div>
-
-        <div class="metric-grid">
-          <article class="summary-card">
-            <p class="card-label">최근 회복 점수</p>
-            <p id="latestRecoveryScore" class="big-number">-</p>
-            <p id="latestRecoveryLabel" class="card-note">수면 기록이 없습니다.</p>
-          </article>
-
-          <article class="summary-card">
-            <p class="card-label">최근 러닝 페이스</p>
-            <p id="latestRunPace" class="big-number">-</p>
-            <p id="latestRunDistance" class="card-note">러닝 기록이 없습니다.</p>
-          </article>
-
-          <article class="summary-card">
-            <p class="card-label">총 러닝 거리</p>
-            <p id="totalRunDistance" class="big-number">0 km</p>
-            <p id="totalRunCount" class="card-note">0회 기록</p>
-          </article>
-
-          <article class="summary-card">
-            <p class="card-label">평균 수면시간</p>
-            <p id="avgSleepTime" class="big-number">-</p>
-            <p id="sleepCount" class="card-note">0일 기록</p>
-          </article>
-        </div>
-
-        <div class="two-column">
-          <section class="panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Latest Sleep</p>
-                <h3>최근 수면 평가</h3>
-              </div>
-            </div>
-            <div id="latestSleepDetail" class="empty-box">
-              아직 수면 기록이 없습니다.
-            </div>
-          </section>
-
-          <section class="panel">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Latest Run</p>
-                <h3>최근 러닝 기록</h3>
-              </div>
-            </div>
-            <div id="latestRunDetail" class="empty-box">
-              아직 러닝 기록이 없습니다.
-            </div>
-          </section>
-        </div>
-      </section>
-
-      <!-- Sleep Input -->
-      <section id="view-sleep" class="view">
-        <div class="section-heading">
-          <p class="eyebrow">Sleep Input</p>
-          <h2>수면 데이터 입력</h2>
-        </div>
-
-        <div class="form-layout">
-          <form id="sleepForm" class="panel form-panel">
-            <div class="form-grid">
-              <label class="field">
-                <span>날짜</span>
-                <input id="sleepDate" type="date" required />
-              </label>
-
-              <label class="field">
-                <span>총 수면시간</span>
-                <div class="time-row">
-                  <input id="totalSleepHour" type="number" min="0" max="24" placeholder="시간" required />
-                  <input id="totalSleepMinute" type="number" min="0" max="59" placeholder="분" required />
-                </div>
-              </label>
-
-              <label class="field">
-                <span>수면 점수</span>
-                <input id="sleepScore" type="number" min="0" max="100" placeholder="예: 81" required />
-              </label>
-
-              <label class="field">
-                <span>바디배터리</span>
-                <input id="bodyBattery" type="number" min="0" max="100" placeholder="예: 68" required />
-              </label>
-
-              <label class="field">
-                <span>트레이닝 준비 상태</span>
-                <input id="trainingReadiness" type="number" min="0" max="100" placeholder="예: 72" required />
-              </label>
-
-              <label class="field">
-                <span>깊은 잠</span>
-                <div class="time-row">
-                  <input id="deepSleepHour" type="number" min="0" max="24" placeholder="시간" required />
-                  <input id="deepSleepMinute" type="number" min="0" max="59" placeholder="분" required />
-                </div>
-              </label>
-
-              <label class="field">
-                <span>REM 수면</span>
-                <div class="time-row">
-                  <input id="remSleepHour" type="number" min="0" max="24" placeholder="시간" required />
-                  <input id="remSleepMinute" type="number" min="0" max="59" placeholder="분" required />
-                </div>
-              </label>
-
-              <label class="field">
-                <span>안정시 심박</span>
-                <input id="restingHeartRate" type="number" min="20" max="200" placeholder="예: 58" required />
-              </label>
-
-              <label class="field">
-                <span>평균 산소포화도</span>
-                <input id="avgSpO2" type="number" min="50" max="100" placeholder="예: 96" required />
-              </label>
-
-              <label class="field">
-                <span>HRV</span>
-                <input id="hrv" type="number" min="0" max="300" placeholder="예: 42" required />
-              </label>
-
-              <label class="field field-full">
-                <span>메모</span>
-                <textarea id="sleepMemo" rows="3" placeholder="예: 중간에 한 번 깸, 늦게 잠"></textarea>
-              </label>
-            </div>
-
-            <div class="form-actions">
-              <button class="button button-dark" type="submit">수면 저장</button>
-              <button id="resetSleepFormBtn" class="button button-secondary" type="button">초기화</button>
-            </div>
-          </form>
-
-          <aside class="panel result-panel">
-            <p class="eyebrow">Recovery Result</p>
-            <h3>수면 평가 결과</h3>
-            <div id="sleepResultPreview" class="empty-box">
-              수면 데이터를 저장하면 평가 결과가 표시됩니다.
-            </div>
-          </aside>
-        </div>
-      </section>
-
-      <!-- Run Input -->
-      <section id="view-run" class="view">
-        <div class="section-heading">
-          <p class="eyebrow">Run Input</p>
-          <h2>러닝 데이터 입력</h2>
-        </div>
-
-        <div class="form-layout">
-          <form id="runForm" class="panel form-panel">
-            <div class="form-grid">
-              <label class="field">
-                <span>날짜</span>
-                <input id="runDate" type="date" required />
-              </label>
-
-              <label class="field">
-                <span>총 거리 km</span>
-                <input id="distanceKm" type="number" min="0" step="0.01" placeholder="예: 5.23" required />
-              </label>
-
-              <label class="field">
-                <span>시간</span>
-                <div class="time-row three">
-                  <input id="runHour" type="number" min="0" max="99" placeholder="시" required />
-                  <input id="runMinute" type="number" min="0" max="59" placeholder="분" required />
-                  <input id="runSecond" type="number" min="0" max="59" placeholder="초" required />
-                </div>
-              </label>
-
-              <label class="field">
-                <span>총 칼로리 kcal</span>
-                <input id="calories" type="number" min="0" placeholder="예: 389" />
-              </label>
-
-              <label class="field">
-                <span>평균 심박수 bpm</span>
-                <input id="avgHeartRate" type="number" min="0" max="240" placeholder="예: 151" />
-              </label>
-
-              <label class="field">
-                <span>최대 심박수 bpm</span>
-                <input id="maxHeartRate" type="number" min="0" max="240" placeholder="예: 176" />
-              </label>
-
-              <label class="field">
-                <span>케이던스 spm</span>
-                <input id="cadence" type="number" min="0" max="300" placeholder="예: 168" />
-              </label>
-
-              <label class="field">
-                <span>평균 보폭 m</span>
-                <input id="strideLength" type="number" min="0" step="0.01" placeholder="예: 1.02" />
-              </label>
-
-              <label class="field">
-                <span>수직 비율 %</span>
-                <input id="verticalRatio" type="number" min="0" step="0.1" placeholder="예: 8.4" />
-              </label>
-
-              <label class="field">
-                <span>지면 접촉 시간 ms</span>
-                <input id="groundContactTime" type="number" min="0" placeholder="예: 245" />
-              </label>
-
-              <label class="field field-full">
-                <span>메모</span>
-                <textarea id="runMemo" rows="3" placeholder="예: 후반 힘듦, 날씨 더움, 컨디션 보통"></textarea>
-              </label>
-            </div>
-
-            <div class="computed-box">
-              <div>
-                <span>자동 계산 페이스</span>
-                <strong id="computedPace">-</strong>
-              </div>
-              <div>
-                <span>자동 계산 속력</span>
-                <strong id="computedSpeed">-</strong>
-              </div>
-              <div>
-                <span>심박 효율</span>
-                <strong id="computedHrEfficiency">-</strong>
-              </div>
-            </div>
-
-            <div class="form-actions">
-              <button class="button button-dark" type="submit">러닝 저장</button>
-              <button id="resetRunFormBtn" class="button button-secondary" type="button">초기화</button>
-            </div>
-          </form>
-
-          <aside class="panel result-panel">
-            <p class="eyebrow">Run Result</p>
-            <h3>러닝 계산 결과</h3>
-            <div id="runResultPreview" class="empty-box">
-              러닝 데이터를 저장하면 계산 결과가 표시됩니다.
-            </div>
-          </aside>
-        </div>
-      </section>
-
-      <!-- Records -->
-      <section id="view-records" class="view">
-        <div class="section-heading">
-          <p class="eyebrow">Records</p>
-          <h2>기록 목록</h2>
-        </div>
-
-        <div class="record-tools">
-          <div class="tab-group" role="tablist">
-            <button class="tab-pill active" data-record-tab="sleep" type="button">Sleep Records</button>
-            <button class="tab-pill" data-record-tab="run" type="button">Run Records</button>
+          <div class="header-actions">
+            <button type="button" class="btn btn-secondary" id="resetButton">
+              전체 초기화
+            </button>
+            <a class="btn btn-primary" href="#input">기록 입력</a>
           </div>
-
-          <button id="deleteAllBtn" class="button button-secondary" type="button">전체 삭제</button>
         </div>
+      </header>
 
-        <div id="sleepRecords" class="records-list"></div>
-        <div id="runRecords" class="records-list hidden"></div>
-      </section>
-    </main>
+      <!-- =========================
+           Hero
+      ========================== -->
+      <main>
+        <section class="hero">
+          <div class="container hero-grid">
+            <div class="hero-copy">
+              <div class="badge">Manual Running & Sleep Tracker</div>
 
-    <footer class="site-footer">
-      <p>
-        본 앱은 개인 기록과 훈련 참고용입니다. 수면장애, 저산소증, 부정맥, 질병을 진단하거나 치료하기 위한 의료 기능이 아닙니다.
-      </p>
-    </footer>
+              <h1>
+                러닝과 수면을<br />
+                <span>숫자로 관리</span>한다
+              </h1>
 
-  </div>
+              <p class="hero-desc">
+                Garmin 데이터를 자동 연동하지 않고도, 핵심 지표를 수동 입력해
+                러닝 컨디션과 수면 회복 상태를 한 화면에서 확인하는 개인용
+                기록 앱입니다.
+              </p>
 
-  <script src="./app.js"></script>
-</body>
+              <div class="hero-actions">
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  data-tab="running"
+                >
+                  러닝 기록하기
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  data-tab="sleep"
+                >
+                  수면 기록하기
+                </button>
+              </div>
+
+              <div class="hero-meta">
+                <div class="meta-item">
+                  <div class="meta-label">DATA TYPE</div>
+                  <div class="meta-value">2</div>
+                </div>
+
+                <div class="meta-item">
+                  <div class="meta-label">STORAGE</div>
+                  <div class="meta-value">Local</div>
+                </div>
+
+                <div class="meta-item">
+                  <div class="meta-label">MODE</div>
+                  <div class="meta-value">Manual</div>
+                </div>
+              </div>
+            </div>
+
+            <aside class="summary-card" aria-label="최신 기록 요약">
+              <div class="summary-head">
+                <div>
+                  <h2 class="summary-title">Latest Score</h2>
+                  <div class="summary-date" id="latestDate">
+                    기록을 입력하면 최신 점수가 표시됩니다.
+                  </div>
+                </div>
+
+                <span class="status-pill">
+                  <span class="status-dot"></span>
+                  Live
+                </span>
+              </div>
+
+              <div class="score-ring">
+                <div>
+                  <div class="score-value" id="latestScoreValue">-</div>
+                  <div class="score-label" id="latestScoreLabel">No Data</div>
+                </div>
+              </div>
+
+              <div class="metric-grid">
+                <div class="metric-card">
+                  <div class="metric-label">총 러닝 거리</div>
+                  <div class="metric-value">
+                    <span data-total-run-distance>0</span>
+                    <span class="metric-unit">km</span>
+                  </div>
+                </div>
+
+                <div class="metric-card">
+                  <div class="metric-label">평균 수면 점수</div>
+                  <div class="metric-value">
+                    <span data-avg-sleep-score>0</span>
+                    <span class="metric-unit">점</span>
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <!-- =========================
+             Dashboard
+        ========================== -->
+        <section class="section" id="dashboard">
+          <div class="container">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker">Dashboard</p>
+                <h2 class="section-title">기록 요약</h2>
+                <p class="section-desc">
+                  입력된 러닝·수면 기록을 기반으로 누적 거리, 평균 페이스,
+                  평균 심박, 수면 비율을 계산합니다.
+                </p>
+              </div>
+            </div>
+
+            <div class="dashboard-grid">
+              <article class="card card-sm">
+                <div class="card-body">
+                  <div class="card-title">
+                    <div>
+                      <h3>총 거리</h3>
+                      <p>Running Distance</p>
+                    </div>
+                  </div>
+
+                  <div class="big-number">
+                    <span data-total-run-distance>0</span>
+                    <span class="metric-unit">km</span>
+                  </div>
+                  <div class="sub-number">누적 러닝 거리</div>
+                </div>
+              </article>
+
+              <article class="card card-sm">
+                <div class="card-body">
+                  <div class="card-title">
+                    <div>
+                      <h3>평균 페이스</h3>
+                      <p>Average Pace</p>
+                    </div>
+                  </div>
+
+                  <div class="big-number">
+                    <span id="avgRunPace">-</span>
+                  </div>
+                  <div class="sub-number">분/km 기준</div>
+                </div>
+              </article>
+
+              <article class="card card-sm">
+                <div class="card-body">
+                  <div class="card-title">
+                    <div>
+                      <h3>평균 심박</h3>
+                      <p>Average HR</p>
+                    </div>
+                  </div>
+
+                  <div class="big-number">
+                    <span id="avgRunHeartRate">0</span>
+                    <span class="metric-unit">bpm</span>
+                  </div>
+                  <div class="sub-number">러닝 평균 심박수</div>
+                </div>
+              </article>
+
+              <article class="card card-sm">
+                <div class="card-body">
+                  <div class="card-title">
+                    <div>
+                      <h3>총 칼로리</h3>
+                      <p>Total Calories</p>
+                    </div>
+                  </div>
+
+                  <div class="big-number">
+                    <span id="totalRunCalories">0</span>
+                    <span class="metric-unit">kcal</span>
+                  </div>
+                  <div class="sub-number">누적 소모 칼로리</div>
+                </div>
+              </article>
+
+              <article class="card card-md">
+                <div class="card-body">
+                  <div class="card-title">
+                    <div>
+                      <h3>평균 수면 점수</h3>
+                      <p>Average Sleep Score</p>
+                    </div>
+                  </div>
+
+                  <div class="big-number">
+                    <span data-avg-sleep-score>0</span>
+                    <span class="metric-unit">점</span>
+                  </div>
+                  <div class="sub-number">입력된 수면 점수 평균</div>
+                </div>
+              </article>
+
+              <article class="card card-md">
+                <div class="card-body">
+                  <div class="card-title">
+                    <div>
+                      <h3>평균 수면 시간</h3>
+                      <p>Average Sleep Duration</p>
+                    </div>
+                  </div>
+
+                  <div class="big-number">
+                    <span id="avgSleepTime">0분</span>
+                  </div>
+                  <div class="sub-number">입력된 수면 기록 기준</div>
+                </div>
+              </article>
+
+              <article class="card card-md">
+                <div class="card-body">
+                  <div class="card-title">
+                    <div>
+                      <h3>깊은 수면 비율</h3>
+                      <p>Deep Sleep Ratio</p>
+                    </div>
+                  </div>
+
+                  <div class="big-number">
+                    <span id="avgDeepSleepRatio">0%</span>
+                  </div>
+                  <div class="sub-number">총 수면 시간 대비</div>
+                </div>
+              </article>
+
+              <article class="card card-md">
+                <div class="card-body">
+                  <div class="card-title">
+                    <div>
+                      <h3>REM 수면 비율</h3>
+                      <p>REM Sleep Ratio</p>
+                    </div>
+                  </div>
+
+                  <div class="big-number">
+                    <span id="avgRemSleepRatio">0%</span>
+                  </div>
+                  <div class="sub-number">총 수면 시간 대비</div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <!-- =========================
+             Input
+        ========================== -->
+        <section class="section" id="input">
+          <div class="container">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker">Input</p>
+                <h2 class="section-title">데이터 입력</h2>
+                <p class="section-desc">
+                  러닝 기록과 수면 기록을 각각 입력합니다. 현재 버전은
+                  브라우저 localStorage에만 저장됩니다.
+                </p>
+              </div>
+
+              <div class="hero-actions">
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  data-tab="running"
+                >
+                  러닝
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  data-tab="sleep"
+                >
+                  수면
+                </button>
+              </div>
+            </div>
+
+            <!-- Running Form -->
+            <article class="card card-full" data-tab-panel="running">
+              <div class="card-body">
+                <div class="card-title">
+                  <div>
+                    <h3>러닝 기록 입력</h3>
+                    <p>Garmin 러닝 데이터 핵심 항목을 수동 입력</p>
+                  </div>
+                </div>
+
+                <form id="runningForm">
+                  <div class="form-grid">
+                    <div class="field">
+                      <label for="runDate">날짜</label>
+                      <input
+                        class="input"
+                        type="date"
+                        id="runDate"
+                        name="runDate"
+                        required
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label for="distanceKm">총 거리(km)</label>
+                      <input
+                        class="input"
+                        type="number"
+                        id="distanceKm"
+                        name="distanceKm"
+                        step="0.01"
+                        min="0"
+                        placeholder="예: 5.23"
+                        required
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label for="durationMin">시간(분)</label>
+                      <input
+                        class="input"
+                        type="number"
+                        id="durationMin"
+                        name="durationMin"
+                        step="1"
+                        min="0"
+                        placeholder="예: 32"
+                        required
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label for="avgPace">평균 페이스</label>
+                      <input
+                        class="input"
+                        type="text"
+                        id="avgPace"
+                        name="avgPace"
+                        placeholder="예: 6:05"
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label for="calories">총 칼로리(kcal)</label>
+                      <input
+                        class="input"
+                        type="number"
+                        id="calories"
+                        name="calories"
+                        step="1"
+                        min="0"
+                        placeholder="예: 420"
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label for="avgSpeed">평균 속력(km/h)</label>
+                      <input
+                        class="input"
+                        type="number"
+                        id="avgSpeed"
+                        name="avgSpeed"
+                        step="0.1"
+                        min="0"
+                        placeholder="예: 9.8"
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label for="avgHeartRate">평균 심박수(bpm)</label>
+                      <input
+                        class="input"
+                        type="number"
+                        id="avgHeartRate"
+                        name="avgHeartRate"
+                        step="1"
+                        min="0"
+                        placeholder="예: 148"
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label for="maxHeartRate">최대 심박수(bpm)</label>
+                      <input
+                        class="input"
+                        type="number"
+                        id="maxHeartRate"
+                        name="maxHeartRate"
+                        step="1"
+                        min="0"
+                        placeholder="예: 176"
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label for="cadence">케이던스(spm)</label>
+                      <input
+                        class="input"
+                        type="number"
+                        id="cadence"
+                        name="cadence"
+                        step="1"
+                        min="0"
+                        placeholder="예: 172"
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label for="strideLength">평균 보폭(m)</label>
+                      <input
+                        class="input"
+                        type="number"
+                        id="strideLength"
+                        name="strideLength"
+                        step="0.01"
+                        min="0"
+                        placeholder="예: 0.98"
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label for="verticalRatio">수직 비율(%)</label>
+                      <input
+                        class="input"
+                        type="number"
+                        id="verticalRatio"
+                        name="verticalRatio"
+                        step="0.1"
+                        min="0"
+                        placeholder="예: 8.4"
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label for="groundContactTime">
+                        지면 접촉 시간(ms)
+                      </label>
+                      <input
+                        class="input"
+                        type="number"
+                        id="groundContactTime"
+                        name="groundContactTime"
+                        step="1"
+                        min="0"
+                        placeholder="예: 255"
+                      />
+                    </div>
+
+                    <div class="field field-full">
+                      <label for="runMemo">메모</label>
+                      <textarea
+                        class="textarea"
+                        id="runMemo"
+                        name="runMemo"
+                        placeholder="컨디션, 코스, 날씨, 통증 여부 등을 입력"
+                      ></textarea>
+                    </div>
+                  </div>
+
+                  <div class="form-actions">
+                    <button type="reset" class="btn btn-secondary">
+                      입력 초기화
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                      러닝 저장
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </article>
+
+            <!-- Sleep Form -->
+            <article class="card card-full hide" data-tab-panel="sleep">
+              <div class="card-body">
+                <div class="card-title">
+                  <div>
+                    <h3>수면 기록 입력</h3>
+                    <p>총 수면, 깊은 수면, REM 수면, 안정시 심박 입력</p>
+                  </div>
+                </div>
+
+                <form id="sleepForm">
+                  <div class="form-grid">
+                    <div class="field">
+                      <label for="sleepDate">날짜</label>
+                      <input
+                        class="input"
+                        type="date"
+                        id="sleepDate"
+                        name="sleepDate"
+                        required
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label for="totalSleepMin">총 수면 시간(분)</label>
+                      <input
+                        class="input"
+                        type="number"
+                        id="totalSleepMin"
+                        name="totalSleepMin"
+                        step="1"
+                        min="0"
+                        placeholder="예: 430"
+                        required
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label for="deepSleepMin">깊은 수면(분)</label>
+                      <input
+                        class="input"
+                        type="number"
+                        id="deepSleepMin"
+                        name="deepSleepMin"
+                        step="1"
+                        min="0"
+                        placeholder="예: 72"
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label for="remSleepMin">REM 수면(분)</label>
+                      <input
+                        class="input"
+                        type="number"
+                        id="remSleepMin"
+                        name="remSleepMin"
+                        step="1"
+                        min="0"
+                        placeholder="예: 96"
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label for="restingHeartRate">안정시 심박수(bpm)</label>
+                      <input
+                        class="input"
+                        type="number"
+                        id="restingHeartRate"
+                        name="restingHeartRate"
+                        step="1"
+                        min="0"
+                        placeholder="예: 58"
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label for="sleepStart">취침 시각</label>
+                      <input
+                        class="input"
+                        type="time"
+                        id="sleepStart"
+                        name="sleepStart"
+                      />
+                    </div>
+
+                    <div class="field">
+                      <label for="sleepEnd">기상 시각</label>
+                      <input
+                        class="input"
+                        type="time"
+                        id="sleepEnd"
+                        name="sleepEnd"
+                      />
+                    </div>
+
+                    <div class="field field-full">
+                      <label for="sleepMemo">메모</label>
+                      <textarea
+                        class="textarea"
+                        id="sleepMemo"
+                        name="sleepMemo"
+                        placeholder="중간 각성, 음주, 카페인, 낮잠, 컨디션 등을 입력"
+                      ></textarea>
+                    </div>
+                  </div>
+
+                  <div class="form-actions">
+                    <button type="reset" class="btn btn-secondary">
+                      입력 초기화
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                      수면 저장
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- =========================
+             History
+        ========================== -->
+        <section class="section" id="history">
+          <div class="container">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker">History</p>
+                <h2 class="section-title">기록 내역</h2>
+                <p class="section-desc">
+                  저장된 기록은 브라우저에 보관됩니다. 다른 PC나 브라우저에서는
+                  같은 데이터가 보이지 않습니다.
+                </p>
+              </div>
+            </div>
+
+            <div class="dashboard-grid">
+              <article class="card card-full">
+                <div class="card-body">
+                  <div class="card-title">
+                    <div>
+                      <h3>러닝 기록</h3>
+                      <p>최근 입력순으로 표시</p>
+                    </div>
+                  </div>
+
+                  <div class="empty-state" id="emptyRunning">
+                    <div>
+                      <div class="badge">No Running Data</div>
+                      <h3>아직 러닝 기록이 없습니다.</h3>
+                      <p>러닝 데이터를 입력하면 이 영역에 기록이 표시됩니다.</p>
+                    </div>
+                  </div>
+
+                  <div class="table-wrap">
+                    <table class="table">
+                      <thead>
+                        <tr>
+                          <th>날짜</th>
+                          <th>거리</th>
+                          <th>시간</th>
+                          <th>페이스</th>
+                          <th>평균 심박</th>
+                          <th>케이던스</th>
+                          <th>점수</th>
+                          <th>관리</th>
+                        </tr>
+                      </thead>
+                      <tbody id="runningTableBody"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </article>
+
+              <article class="card card-full">
+                <div class="card-body">
+                  <div class="card-title">
+                    <div>
+                      <h3>수면 기록</h3>
+                      <p>깊은 수면과 REM 수면은 총 수면 대비 비율로 계산</p>
+                    </div>
+                  </div>
+
+                  <div class="empty-state" id="emptySleep">
+                    <div>
+                      <div class="badge">No Sleep Data</div>
+                      <h3>아직 수면 기록이 없습니다.</h3>
+                      <p>수면 데이터를 입력하면 이 영역에 기록이 표시됩니다.</p>
+                    </div>
+                  </div>
+
+                  <div class="table-wrap">
+                    <table class="table">
+                      <thead>
+                        <tr>
+                          <th>날짜</th>
+                          <th>총 수면</th>
+                          <th>깊은 수면</th>
+                          <th>REM 수면</th>
+                          <th>안정시 심박</th>
+                          <th>점수</th>
+                          <th>관리</th>
+                        </tr>
+                      </thead>
+                      <tbody id="sleepTableBody"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- =========================
+           Footer
+      ========================== -->
+      <footer class="footer">
+        <div class="container footer-inner">
+          <div>RunLog Lab · Manual running & sleep tracker</div>
+          <div>Data saved in browser localStorage</div>
+        </div>
+      </footer>
+    </div>
+
+    <script src="./script.js"></script>
+  </body>
 </html>
