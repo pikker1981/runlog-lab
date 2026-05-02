@@ -31,12 +31,13 @@ const sleepForm = $("#sleepForm");
 const runningTableBody = $("#runningTableBody");
 const sleepTableBody = $("#sleepTableBody");
 
-const totalRunDistance = $("#totalRunDistance");
+const totalRunDistanceElements = $$("[data-total-run-distance]");
+const avgSleepScoreElements = $$("[data-avg-sleep-score]");
+
 const avgRunPace = $("#avgRunPace");
 const avgRunHeartRate = $("#avgRunHeartRate");
 const totalRunCalories = $("#totalRunCalories");
 
-const avgSleepScore = $("#avgSleepScore");
 const avgSleepTime = $("#avgSleepTime");
 const avgDeepSleepRatio = $("#avgDeepSleepRatio");
 const avgRemSleepRatio = $("#avgRemSleepRatio");
@@ -56,6 +57,7 @@ const resetButton = $("#resetButton");
 
 document.addEventListener("DOMContentLoaded", () => {
   bindEvents();
+  setTodayDefaults();
   render();
 });
 
@@ -80,6 +82,7 @@ function bindEvents() {
     button.addEventListener("click", () => {
       state.currentTab = button.dataset.tab;
       renderTabs();
+      scrollToInput();
     });
   });
 }
@@ -91,6 +94,7 @@ function bindEvents() {
 function loadRecords() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
+
     if (!raw) {
       return {
         running: [],
@@ -132,7 +136,7 @@ function handleRunningSubmit(event) {
     date: formData.get("runDate"),
     distanceKm: toNumber(formData.get("distanceKm")),
     durationMin: toNumber(formData.get("durationMin")),
-    avgPace: formData.get("avgPace"),
+    avgPace: sanitizeText(formData.get("avgPace")),
     calories: toNumber(formData.get("calories")),
     avgSpeed: toNumber(formData.get("avgSpeed")),
     avgHeartRate: toNumber(formData.get("avgHeartRate")),
@@ -141,7 +145,7 @@ function handleRunningSubmit(event) {
     strideLength: toNumber(formData.get("strideLength")),
     verticalRatio: toNumber(formData.get("verticalRatio")),
     groundContactTime: toNumber(formData.get("groundContactTime")),
-    memo: formData.get("runMemo") || "",
+    memo: sanitizeText(formData.get("runMemo")),
     createdAt: new Date().toISOString(),
   };
 
@@ -156,6 +160,7 @@ function handleRunningSubmit(event) {
   saveRecords();
 
   runningForm.reset();
+  setTodayDefaults();
   render();
 }
 
@@ -163,45 +168,69 @@ function calculateRunningScore(record) {
   let score = 100;
 
   /**
-   * 기준은 절대값 기반.
-   * 단, 개인화 기준이 없으므로 일반적인 생활 러너 기준으로 보수적으로 계산.
+   * 러닝 점수 기준
+   * 현재는 개인 심박존/목표 페이스가 없으므로 생활 러너 기준의 절대값 평가.
+   * 추후 사용자 기준 페이스, 목표 거리, 최대심박 기반으로 개인화 가능.
    */
 
   const paceSeconds = paceToSeconds(record.avgPace);
 
   if (paceSeconds) {
-    if (paceSeconds <= 300) score -= 0; // 5:00/km 이내
-    else if (paceSeconds <= 360) score -= 8; // 6:00/km 이내
-    else if (paceSeconds <= 420) score -= 16; // 7:00/km 이내
-    else score -= 26;
+    if (paceSeconds <= 300) {
+      score -= 0;
+    } else if (paceSeconds <= 360) {
+      score -= 8;
+    } else if (paceSeconds <= 420) {
+      score -= 16;
+    } else {
+      score -= 26;
+    }
   } else {
     score -= 8;
   }
 
   if (record.avgHeartRate > 0) {
-    if (record.avgHeartRate <= 150) score -= 0;
-    else if (record.avgHeartRate <= 165) score -= 8;
-    else if (record.avgHeartRate <= 178) score -= 16;
-    else score -= 24;
+    if (record.avgHeartRate <= 150) {
+      score -= 0;
+    } else if (record.avgHeartRate <= 165) {
+      score -= 8;
+    } else if (record.avgHeartRate <= 178) {
+      score -= 16;
+    } else {
+      score -= 24;
+    }
   }
 
   if (record.cadence > 0) {
-    if (record.cadence >= 165 && record.cadence <= 185) score -= 0;
-    else if (record.cadence >= 155 && record.cadence < 165) score -= 6;
-    else if (record.cadence > 185 && record.cadence <= 195) score -= 6;
-    else score -= 12;
+    if (record.cadence >= 165 && record.cadence <= 185) {
+      score -= 0;
+    } else if (record.cadence >= 155 && record.cadence < 165) {
+      score -= 6;
+    } else if (record.cadence > 185 && record.cadence <= 195) {
+      score -= 6;
+    } else {
+      score -= 12;
+    }
   }
 
   if (record.verticalRatio > 0) {
-    if (record.verticalRatio <= 8) score -= 0;
-    else if (record.verticalRatio <= 10) score -= 6;
-    else score -= 12;
+    if (record.verticalRatio <= 8) {
+      score -= 0;
+    } else if (record.verticalRatio <= 10) {
+      score -= 6;
+    } else {
+      score -= 12;
+    }
   }
 
   if (record.groundContactTime > 0) {
-    if (record.groundContactTime <= 250) score -= 0;
-    else if (record.groundContactTime <= 280) score -= 6;
-    else score -= 12;
+    if (record.groundContactTime <= 250) {
+      score -= 0;
+    } else if (record.groundContactTime <= 280) {
+      score -= 6;
+    } else {
+      score -= 12;
+    }
   }
 
   return clamp(Math.round(score), 0, 100);
@@ -229,12 +258,17 @@ function handleSleepSubmit(event) {
     restingHeartRate: toNumber(formData.get("restingHeartRate")),
     sleepStart: formData.get("sleepStart"),
     sleepEnd: formData.get("sleepEnd"),
-    memo: formData.get("sleepMemo") || "",
+    memo: sanitizeText(formData.get("sleepMemo")),
     createdAt: new Date().toISOString(),
   };
 
   if (!record.date || record.totalSleepMin <= 0) {
     alert("수면 날짜와 총 수면 시간을 확인해줘.");
+    return;
+  }
+
+  if (record.deepSleepMin + record.remSleepMin > record.totalSleepMin) {
+    alert("깊은 수면과 REM 수면의 합이 총 수면 시간을 넘을 수 없어.");
     return;
   }
 
@@ -246,6 +280,7 @@ function handleSleepSubmit(event) {
   saveRecords();
 
   sleepForm.reset();
+  setTodayDefaults();
   render();
 }
 
@@ -255,34 +290,55 @@ function calculateSleepScore(record) {
   const totalHours = record.totalSleepMin / 60;
 
   /**
-   * 절대값 기준
+   * 수면 점수 기준
    * - 총 수면: 7~9시간 최상
    * - 깊은 수면: 총 수면 대비 13~23% 양호
-   * - 렘 수면: 총 수면 대비 20~25% 양호
+   * - REM 수면: 총 수면 대비 20~25% 양호
    * - 안정시 심박: 낮을수록 양호하나 개인차 큼
    */
 
-  if (totalHours >= 7 && totalHours <= 9) score -= 0;
-  else if (totalHours >= 6 && totalHours < 7) score -= 10;
-  else if (totalHours > 9 && totalHours <= 10) score -= 8;
-  else if (totalHours >= 5 && totalHours < 6) score -= 22;
-  else score -= 35;
+  if (totalHours >= 7 && totalHours <= 9) {
+    score -= 0;
+  } else if (totalHours >= 6 && totalHours < 7) {
+    score -= 10;
+  } else if (totalHours > 9 && totalHours <= 10) {
+    score -= 8;
+  } else if (totalHours >= 5 && totalHours < 6) {
+    score -= 22;
+  } else {
+    score -= 35;
+  }
 
-  if (record.deepSleepRatio >= 13 && record.deepSleepRatio <= 23) score -= 0;
-  else if (record.deepSleepRatio >= 10 && record.deepSleepRatio < 13) score -= 8;
-  else if (record.deepSleepRatio > 23 && record.deepSleepRatio <= 28) score -= 6;
-  else score -= 16;
+  if (record.deepSleepRatio >= 13 && record.deepSleepRatio <= 23) {
+    score -= 0;
+  } else if (record.deepSleepRatio >= 10 && record.deepSleepRatio < 13) {
+    score -= 8;
+  } else if (record.deepSleepRatio > 23 && record.deepSleepRatio <= 28) {
+    score -= 6;
+  } else {
+    score -= 16;
+  }
 
-  if (record.remSleepRatio >= 20 && record.remSleepRatio <= 25) score -= 0;
-  else if (record.remSleepRatio >= 16 && record.remSleepRatio < 20) score -= 8;
-  else if (record.remSleepRatio > 25 && record.remSleepRatio <= 30) score -= 6;
-  else score -= 16;
+  if (record.remSleepRatio >= 20 && record.remSleepRatio <= 25) {
+    score -= 0;
+  } else if (record.remSleepRatio >= 16 && record.remSleepRatio < 20) {
+    score -= 8;
+  } else if (record.remSleepRatio > 25 && record.remSleepRatio <= 30) {
+    score -= 6;
+  } else {
+    score -= 16;
+  }
 
   if (record.restingHeartRate > 0) {
-    if (record.restingHeartRate <= 60) score -= 0;
-    else if (record.restingHeartRate <= 70) score -= 6;
-    else if (record.restingHeartRate <= 80) score -= 12;
-    else score -= 20;
+    if (record.restingHeartRate <= 60) {
+      score -= 0;
+    } else if (record.restingHeartRate <= 70) {
+      score -= 6;
+    } else if (record.restingHeartRate <= 80) {
+      score -= 12;
+    } else {
+      score -= 20;
+    }
   }
 
   return clamp(Math.round(score), 0, 100);
@@ -303,6 +359,7 @@ function render() {
 function renderTabs() {
   $$("[data-tab]").forEach((button) => {
     const isActive = button.dataset.tab === state.currentTab;
+
     button.classList.toggle("btn-primary", isActive);
     button.classList.toggle("btn-secondary", !isActive);
   });
@@ -322,11 +379,11 @@ function renderRunningTable() {
       return `
         <tr>
           <td><strong>${formatDate(record.date)}</strong></td>
-          <td>${formatNumber(record.distanceKm)} km</td>
+          <td>${formatNumber(record.distanceKm, 2)} km</td>
           <td>${formatDuration(record.durationMin)}</td>
           <td>${record.avgPace || "-"}</td>
-          <td>${formatNumber(record.avgHeartRate)} bpm</td>
-          <td>${formatNumber(record.cadence)} spm</td>
+          <td>${formatNumber(record.avgHeartRate, 0)} bpm</td>
+          <td>${formatNumber(record.cadence, 0)} spm</td>
           <td><strong>${record.score}</strong></td>
           <td>
             <button class="btn btn-danger" onclick="deleteRunningRecord('${record.id}')">
@@ -354,9 +411,9 @@ function renderSleepTable() {
         <tr>
           <td><strong>${formatDate(record.date)}</strong></td>
           <td>${formatDuration(record.totalSleepMin)}</td>
-          <td>${formatNumber(record.deepSleepRatio)}%</td>
-          <td>${formatNumber(record.remSleepRatio)}%</td>
-          <td>${formatNumber(record.restingHeartRate)} bpm</td>
+          <td>${formatNumber(record.deepSleepRatio, 1)}%</td>
+          <td>${formatNumber(record.remSleepRatio, 1)}%</td>
+          <td>${formatNumber(record.restingHeartRate, 0)} bpm</td>
           <td><strong>${record.score}</strong></td>
           <td>
             <button class="btn btn-danger" onclick="deleteSleepRecord('${record.id}')">
@@ -381,12 +438,10 @@ function renderDashboard() {
 function renderRunningDashboard() {
   const records = state.records.running;
 
-  if (totalRunDistance) {
-    totalRunDistance.textContent = formatNumber(
-      sum(records, "distanceKm"),
-      1
-    );
-  }
+  setTextAll(
+    totalRunDistanceElements,
+    formatNumber(sum(records, "distanceKm"), 1)
+  );
 
   if (avgRunPace) {
     avgRunPace.textContent = calculateAveragePace(records);
@@ -404,28 +459,43 @@ function renderRunningDashboard() {
 function renderSleepDashboard() {
   const records = state.records.sleep;
 
-  if (avgSleepScore) {
-    avgSleepScore.textContent = formatNumber(avg(records, "score"), 0);
-  }
+  setTextAll(avgSleepScoreElements, formatNumber(avg(records, "score"), 0));
 
   if (avgSleepTime) {
     avgSleepTime.textContent = formatDuration(avg(records, "totalSleepMin"));
   }
 
   if (avgDeepSleepRatio) {
-    avgDeepSleepRatio.textContent = `${formatNumber(avg(records, "deepSleepRatio"), 1)}%`;
+    avgDeepSleepRatio.textContent = `${formatNumber(
+      avg(records, "deepSleepRatio"),
+      1
+    )}%`;
   }
 
   if (avgRemSleepRatio) {
-    avgRemSleepRatio.textContent = `${formatNumber(avg(records, "remSleepRatio"), 1)}%`;
+    avgRemSleepRatio.textContent = `${formatNumber(
+      avg(records, "remSleepRatio"),
+      1
+    )}%`;
   }
 }
 
 function renderLatestSummary() {
   if (!latestScoreValue || !latestScoreLabel || !latestDate) return;
 
-  const latestRunning = state.records.running[0];
-  const latestSleep = state.records.sleep[0];
+  const latestRunning = state.records.running[0]
+    ? {
+        ...state.records.running[0],
+        type: "running",
+      }
+    : null;
+
+  const latestSleep = state.records.sleep[0]
+    ? {
+        ...state.records.sleep[0],
+        type: "sleep",
+      }
+    : null;
 
   const latest = [latestRunning, latestSleep]
     .filter(Boolean)
@@ -440,7 +510,9 @@ function renderLatestSummary() {
 
   latestScoreValue.textContent = latest.score;
   latestScoreLabel.textContent = getScoreLabel(latest.score);
-  latestDate.textContent = `${formatDate(latest.date)} 기준 최신 기록`;
+
+  const typeLabel = latest.type === "running" ? "러닝" : "수면";
+  latestDate.textContent = `${formatDate(latest.date)} 기준 최신 ${typeLabel} 기록`;
 }
 
 /* =========================
@@ -448,13 +520,27 @@ function renderLatestSummary() {
    ========================= */
 
 function deleteRunningRecord(id) {
-  state.records.running = state.records.running.filter((record) => record.id !== id);
+  const confirmed = confirm("이 러닝 기록을 삭제할까?");
+
+  if (!confirmed) return;
+
+  state.records.running = state.records.running.filter(
+    (record) => record.id !== id
+  );
+
   saveRecords();
   render();
 }
 
 function deleteSleepRecord(id) {
-  state.records.sleep = state.records.sleep.filter((record) => record.id !== id);
+  const confirmed = confirm("이 수면 기록을 삭제할까?");
+
+  if (!confirmed) return;
+
+  state.records.sleep = state.records.sleep.filter(
+    (record) => record.id !== id
+  );
+
   saveRecords();
   render();
 }
@@ -527,6 +613,7 @@ function formatDate(dateString) {
   if (Number.isNaN(date.getTime())) return dateString;
 
   return date.toLocaleDateString("ko-KR", {
+    year: "numeric",
     month: "2-digit",
     day: "2-digit",
   });
@@ -542,15 +629,22 @@ function formatDuration(minutes) {
 
   if (hours <= 0) return `${mins}분`;
 
+  if (mins === 0) return `${hours}시간`;
+
   return `${hours}시간 ${mins}분`;
 }
 
 function paceToSeconds(pace) {
   if (!pace || typeof pace !== "string") return 0;
 
-  const [min, sec] = pace.split(":").map(Number);
+  const normalized = pace.trim();
+
+  if (!normalized.includes(":")) return 0;
+
+  const [min, sec] = normalized.split(":").map(Number);
 
   if (!Number.isFinite(min) || !Number.isFinite(sec)) return 0;
+  if (min < 0 || sec < 0 || sec >= 60) return 0;
 
   return min * 60 + sec;
 }
@@ -571,6 +665,10 @@ function calculateAveragePace(records) {
   const minutes = Math.floor(paceMin);
   const seconds = Math.round((paceMin - minutes) * 60);
 
+  if (seconds === 60) {
+    return `${minutes + 1}:00`;
+  }
+
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
@@ -580,6 +678,47 @@ function getScoreLabel(score) {
   if (score >= 70) return "Normal";
   if (score >= 60) return "Caution";
   return "Poor";
+}
+
+function setTextAll(elements, value) {
+  elements.forEach((element) => {
+    element.textContent = value;
+  });
+}
+
+function sanitizeText(value) {
+  if (!value) return "";
+
+  return String(value)
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .trim();
+}
+
+function setTodayDefaults() {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const runDate = $("#runDate");
+  const sleepDate = $("#sleepDate");
+
+  if (runDate && !runDate.value) {
+    runDate.value = today;
+  }
+
+  if (sleepDate && !sleepDate.value) {
+    sleepDate.value = today;
+  }
+}
+
+function scrollToInput() {
+  const inputSection = $("#input");
+
+  if (!inputSection) return;
+
+  inputSection.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
 }
 
 /* =========================
