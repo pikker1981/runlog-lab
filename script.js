@@ -1,15 +1,7 @@
 /* =========================
    RunLog Lab - script.js
+   Feature Update: Edit / Weekly Monthly Summary / Criteria Support
    ========================= */
-
-/**
- * RunLog Lab
- * - 러닝 기록 수동 입력
- * - 수면 기록 수동 입력
- * - localStorage 저장
- * - 객관 지표 기반 점수 계산
- * - 대시보드 / 테이블 렌더링
- */
 
 const STORAGE_KEY = "runlog_lab_records_v1";
 
@@ -46,10 +38,27 @@ const latestScoreValue = $("#latestScoreValue");
 const latestScoreLabel = $("#latestScoreLabel");
 const latestDate = $("#latestDate");
 
+const weeklyRunDistance = $("#weeklyRunDistance");
+const monthlyRunDistance = $("#monthlyRunDistance");
+const weeklySleepTime = $("#weeklySleepTime");
+const monthlySleepScore = $("#monthlySleepScore");
+
 const emptyRunning = $("#emptyRunning");
 const emptySleep = $("#emptySleep");
 
 const resetButton = $("#resetButton");
+
+const editingRunningId = $("#editingRunningId");
+const editingSleepId = $("#editingSleepId");
+
+const runningSubmitButton = $("#runningSubmitButton");
+const sleepSubmitButton = $("#sleepSubmitButton");
+
+const runningEditingBanner = $("#runningEditingBanner");
+const sleepEditingBanner = $("#sleepEditingBanner");
+
+const cancelRunningEditButton = $("#cancelRunningEditButton");
+const cancelSleepEditButton = $("#cancelSleepEditButton");
 
 /* =========================
    Init
@@ -76,6 +85,14 @@ function bindEvents() {
 
   if (resetButton) {
     resetButton.addEventListener("click", handleReset);
+  }
+
+  if (cancelRunningEditButton) {
+    cancelRunningEditButton.addEventListener("click", cancelRunningEdit);
+  }
+
+  if (cancelSleepEditButton) {
+    cancelSleepEditButton.addEventListener("click", cancelSleepEdit);
   }
 
   $$("[data-tab]").forEach((button) => {
@@ -123,16 +140,17 @@ function saveRecords() {
 }
 
 /* =========================
-   Running
+   Running Submit / Edit
    ========================= */
 
 function handleRunningSubmit(event) {
   event.preventDefault();
 
   const formData = new FormData(runningForm);
+  const editId = editingRunningId ? editingRunningId.value : "";
 
   const record = {
-    id: createId(),
+    id: editId || createId(),
     date: formData.get("runDate"),
     distanceKm: toNumber(formData.get("distanceKm")),
     durationMin: toNumber(formData.get("durationMin")),
@@ -146,7 +164,8 @@ function handleRunningSubmit(event) {
     verticalRatio: toNumber(formData.get("verticalRatio")),
     groundContactTime: toNumber(formData.get("groundContactTime")),
     memo: sanitizeText(formData.get("runMemo")),
-    createdAt: new Date().toISOString(),
+    createdAt: editId ? getExistingCreatedAt("running", editId) : new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 
   if (!record.date || record.distanceKm <= 0 || record.durationMin <= 0) {
@@ -156,101 +175,119 @@ function handleRunningSubmit(event) {
 
   record.score = calculateRunningScore(record);
 
-  state.records.running.unshift(record);
-  saveRecords();
+  if (editId) {
+    state.records.running = state.records.running.map((item) =>
+      item.id === editId ? record : item
+    );
+  } else {
+    state.records.running.unshift(record);
+  }
 
+  saveRecords();
+  cancelRunningEdit(false);
   runningForm.reset();
   setTodayDefaults();
   render();
 }
 
+function startRunningEdit(id) {
+  const record = state.records.running.find((item) => item.id === id);
+  if (!record || !runningForm) return;
+
+  state.currentTab = "running";
+  renderTabs();
+
+  $("#runDate").value = record.date || "";
+  $("#distanceKm").value = record.distanceKm || "";
+  $("#durationMin").value = record.durationMin || "";
+  $("#avgPace").value = record.avgPace || "";
+  $("#calories").value = record.calories || "";
+  $("#avgSpeed").value = record.avgSpeed || "";
+  $("#avgHeartRate").value = record.avgHeartRate || "";
+  $("#maxHeartRate").value = record.maxHeartRate || "";
+  $("#cadence").value = record.cadence || "";
+  $("#strideLength").value = record.strideLength || "";
+  $("#verticalRatio").value = record.verticalRatio || "";
+  $("#groundContactTime").value = record.groundContactTime || "";
+  $("#runMemo").value = record.memo || "";
+
+  if (editingRunningId) editingRunningId.value = record.id;
+  if (runningSubmitButton) runningSubmitButton.textContent = "러닝 수정 저장";
+  if (runningEditingBanner) runningEditingBanner.classList.add("active");
+
+  scrollToInput();
+}
+
+function cancelRunningEdit(shouldReset = true) {
+  if (editingRunningId) editingRunningId.value = "";
+  if (runningSubmitButton) runningSubmitButton.textContent = "러닝 저장";
+  if (runningEditingBanner) runningEditingBanner.classList.remove("active");
+
+  if (shouldReset && runningForm) {
+    runningForm.reset();
+    setTodayDefaults();
+  }
+}
+
 function calculateRunningScore(record) {
   let score = 100;
-
-  /**
-   * 러닝 점수 기준
-   * 현재는 개인 심박존/목표 페이스가 없으므로 생활 러너 기준의 절대값 평가.
-   * 추후 사용자 기준 페이스, 목표 거리, 최대심박 기반으로 개인화 가능.
-   */
 
   const paceSeconds = paceToSeconds(record.avgPace);
 
   if (paceSeconds) {
-    if (paceSeconds <= 300) {
-      score -= 0;
-    } else if (paceSeconds <= 360) {
-      score -= 8;
-    } else if (paceSeconds <= 420) {
-      score -= 16;
-    } else {
-      score -= 26;
-    }
+    if (paceSeconds <= 300) score -= 0;
+    else if (paceSeconds <= 360) score -= 8;
+    else if (paceSeconds <= 420) score -= 16;
+    else score -= 26;
   } else {
     score -= 8;
   }
 
   if (record.avgHeartRate > 0) {
-    if (record.avgHeartRate <= 150) {
-      score -= 0;
-    } else if (record.avgHeartRate <= 165) {
-      score -= 8;
-    } else if (record.avgHeartRate <= 178) {
-      score -= 16;
-    } else {
-      score -= 24;
-    }
+    if (record.avgHeartRate <= 150) score -= 0;
+    else if (record.avgHeartRate <= 165) score -= 8;
+    else if (record.avgHeartRate <= 178) score -= 16;
+    else score -= 24;
   }
 
   if (record.cadence > 0) {
-    if (record.cadence >= 165 && record.cadence <= 185) {
-      score -= 0;
-    } else if (record.cadence >= 155 && record.cadence < 165) {
-      score -= 6;
-    } else if (record.cadence > 185 && record.cadence <= 195) {
-      score -= 6;
-    } else {
-      score -= 12;
-    }
+    if (record.cadence >= 165 && record.cadence <= 185) score -= 0;
+    else if (record.cadence >= 155 && record.cadence < 165) score -= 6;
+    else if (record.cadence > 185 && record.cadence <= 195) score -= 6;
+    else score -= 12;
   }
 
   if (record.verticalRatio > 0) {
-    if (record.verticalRatio <= 8) {
-      score -= 0;
-    } else if (record.verticalRatio <= 10) {
-      score -= 6;
-    } else {
-      score -= 12;
-    }
+    if (record.verticalRatio <= 8) score -= 0;
+    else if (record.verticalRatio <= 10) score -= 6;
+    else score -= 12;
   }
 
   if (record.groundContactTime > 0) {
-    if (record.groundContactTime <= 250) {
-      score -= 0;
-    } else if (record.groundContactTime <= 280) {
-      score -= 6;
-    } else {
-      score -= 12;
-    }
+    if (record.groundContactTime <= 250) score -= 0;
+    else if (record.groundContactTime <= 280) score -= 6;
+    else score -= 12;
   }
 
   return clamp(Math.round(score), 0, 100);
 }
 
 /* =========================
-   Sleep
+   Sleep Submit / Edit
    ========================= */
 
 function handleSleepSubmit(event) {
   event.preventDefault();
 
   const formData = new FormData(sleepForm);
+  const editId = editingSleepId ? editingSleepId.value : "";
 
   const totalSleepMin = toNumber(formData.get("totalSleepMin"));
   const deepSleepMin = toNumber(formData.get("deepSleepMin"));
   const remSleepMin = toNumber(formData.get("remSleepMin"));
 
   const record = {
-    id: createId(),
+    id: editId || createId(),
     date: formData.get("sleepDate"),
     totalSleepMin,
     deepSleepMin,
@@ -259,7 +296,8 @@ function handleSleepSubmit(event) {
     sleepStart: formData.get("sleepStart"),
     sleepEnd: formData.get("sleepEnd"),
     memo: sanitizeText(formData.get("sleepMemo")),
-    createdAt: new Date().toISOString(),
+    createdAt: editId ? getExistingCreatedAt("sleep", editId) : new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 
   if (!record.date || record.totalSleepMin <= 0) {
@@ -276,12 +314,53 @@ function handleSleepSubmit(event) {
   record.remSleepRatio = getRatio(record.remSleepMin, record.totalSleepMin);
   record.score = calculateSleepScore(record);
 
-  state.records.sleep.unshift(record);
-  saveRecords();
+  if (editId) {
+    state.records.sleep = state.records.sleep.map((item) =>
+      item.id === editId ? record : item
+    );
+  } else {
+    state.records.sleep.unshift(record);
+  }
 
+  saveRecords();
+  cancelSleepEdit(false);
   sleepForm.reset();
   setTodayDefaults();
   render();
+}
+
+function startSleepEdit(id) {
+  const record = state.records.sleep.find((item) => item.id === id);
+  if (!record || !sleepForm) return;
+
+  state.currentTab = "sleep";
+  renderTabs();
+
+  $("#sleepDate").value = record.date || "";
+  $("#totalSleepMin").value = record.totalSleepMin || "";
+  $("#deepSleepMin").value = record.deepSleepMin || "";
+  $("#remSleepMin").value = record.remSleepMin || "";
+  $("#restingHeartRate").value = record.restingHeartRate || "";
+  $("#sleepStart").value = record.sleepStart || "";
+  $("#sleepEnd").value = record.sleepEnd || "";
+  $("#sleepMemo").value = record.memo || "";
+
+  if (editingSleepId) editingSleepId.value = record.id;
+  if (sleepSubmitButton) sleepSubmitButton.textContent = "수면 수정 저장";
+  if (sleepEditingBanner) sleepEditingBanner.classList.add("active");
+
+  scrollToInput();
+}
+
+function cancelSleepEdit(shouldReset = true) {
+  if (editingSleepId) editingSleepId.value = "";
+  if (sleepSubmitButton) sleepSubmitButton.textContent = "수면 저장";
+  if (sleepEditingBanner) sleepEditingBanner.classList.remove("active");
+
+  if (shouldReset && sleepForm) {
+    sleepForm.reset();
+    setTodayDefaults();
+  }
 }
 
 function calculateSleepScore(record) {
@@ -289,56 +368,27 @@ function calculateSleepScore(record) {
 
   const totalHours = record.totalSleepMin / 60;
 
-  /**
-   * 수면 점수 기준
-   * - 총 수면: 7~9시간 최상
-   * - 깊은 수면: 총 수면 대비 13~23% 양호
-   * - REM 수면: 총 수면 대비 20~25% 양호
-   * - 안정시 심박: 낮을수록 양호하나 개인차 큼
-   */
+  if (totalHours >= 7 && totalHours <= 9) score -= 0;
+  else if (totalHours >= 6 && totalHours < 7) score -= 10;
+  else if (totalHours > 9 && totalHours <= 10) score -= 8;
+  else if (totalHours >= 5 && totalHours < 6) score -= 22;
+  else score -= 35;
 
-  if (totalHours >= 7 && totalHours <= 9) {
-    score -= 0;
-  } else if (totalHours >= 6 && totalHours < 7) {
-    score -= 10;
-  } else if (totalHours > 9 && totalHours <= 10) {
-    score -= 8;
-  } else if (totalHours >= 5 && totalHours < 6) {
-    score -= 22;
-  } else {
-    score -= 35;
-  }
+  if (record.deepSleepRatio >= 13 && record.deepSleepRatio <= 23) score -= 0;
+  else if (record.deepSleepRatio >= 10 && record.deepSleepRatio < 13) score -= 8;
+  else if (record.deepSleepRatio > 23 && record.deepSleepRatio <= 28) score -= 6;
+  else score -= 16;
 
-  if (record.deepSleepRatio >= 13 && record.deepSleepRatio <= 23) {
-    score -= 0;
-  } else if (record.deepSleepRatio >= 10 && record.deepSleepRatio < 13) {
-    score -= 8;
-  } else if (record.deepSleepRatio > 23 && record.deepSleepRatio <= 28) {
-    score -= 6;
-  } else {
-    score -= 16;
-  }
-
-  if (record.remSleepRatio >= 20 && record.remSleepRatio <= 25) {
-    score -= 0;
-  } else if (record.remSleepRatio >= 16 && record.remSleepRatio < 20) {
-    score -= 8;
-  } else if (record.remSleepRatio > 25 && record.remSleepRatio <= 30) {
-    score -= 6;
-  } else {
-    score -= 16;
-  }
+  if (record.remSleepRatio >= 20 && record.remSleepRatio <= 25) score -= 0;
+  else if (record.remSleepRatio >= 16 && record.remSleepRatio < 20) score -= 8;
+  else if (record.remSleepRatio > 25 && record.remSleepRatio <= 30) score -= 6;
+  else score -= 16;
 
   if (record.restingHeartRate > 0) {
-    if (record.restingHeartRate <= 60) {
-      score -= 0;
-    } else if (record.restingHeartRate <= 70) {
-      score -= 6;
-    } else if (record.restingHeartRate <= 80) {
-      score -= 12;
-    } else {
-      score -= 20;
-    }
+    if (record.restingHeartRate <= 60) score -= 0;
+    else if (record.restingHeartRate <= 70) score -= 6;
+    else if (record.restingHeartRate <= 80) score -= 12;
+    else score -= 20;
   }
 
   return clamp(Math.round(score), 0, 100);
@@ -349,10 +399,12 @@ function calculateSleepScore(record) {
    ========================= */
 
 function render() {
+  sortRecords();
   renderTabs();
   renderRunningTable();
   renderSleepTable();
   renderDashboard();
+  renderPeriodSummary();
   renderLatestSummary();
 }
 
@@ -386,9 +438,14 @@ function renderRunningTable() {
           <td>${formatNumber(record.cadence, 0)} spm</td>
           <td><strong>${record.score}</strong></td>
           <td>
-            <button class="btn btn-danger" onclick="deleteRunningRecord('${record.id}')">
-              삭제
-            </button>
+            <div class="table-actions">
+              <button class="btn btn-secondary" onclick="startRunningEdit('${record.id}')">
+                수정
+              </button>
+              <button class="btn btn-danger" onclick="deleteRunningRecord('${record.id}')">
+                삭제
+              </button>
+            </div>
           </td>
         </tr>
       `;
@@ -416,9 +473,14 @@ function renderSleepTable() {
           <td>${formatNumber(record.restingHeartRate, 0)} bpm</td>
           <td><strong>${record.score}</strong></td>
           <td>
-            <button class="btn btn-danger" onclick="deleteSleepRecord('${record.id}')">
-              삭제
-            </button>
+            <div class="table-actions">
+              <button class="btn btn-secondary" onclick="startSleepEdit('${record.id}')">
+                수정
+              </button>
+              <button class="btn btn-danger" onclick="deleteSleepRecord('${record.id}')">
+                삭제
+              </button>
+            </div>
           </td>
         </tr>
       `;
@@ -480,6 +542,35 @@ function renderSleepDashboard() {
   }
 }
 
+function renderPeriodSummary() {
+  const weeklyRunning = filterRecentDays(state.records.running, 7);
+  const monthlyRunning = filterRecentDays(state.records.running, 30);
+  const weeklySleep = filterRecentDays(state.records.sleep, 7);
+  const monthlySleep = filterRecentDays(state.records.sleep, 30);
+
+  if (weeklyRunDistance) {
+    weeklyRunDistance.textContent = formatNumber(
+      sum(weeklyRunning, "distanceKm"),
+      1
+    );
+  }
+
+  if (monthlyRunDistance) {
+    monthlyRunDistance.textContent = formatNumber(
+      sum(monthlyRunning, "distanceKm"),
+      1
+    );
+  }
+
+  if (weeklySleepTime) {
+    weeklySleepTime.textContent = formatDuration(avg(weeklySleep, "totalSleepMin"));
+  }
+
+  if (monthlySleepScore) {
+    monthlySleepScore.textContent = formatNumber(avg(monthlySleep, "score"), 0);
+  }
+}
+
 function renderLatestSummary() {
   if (!latestScoreValue || !latestScoreLabel || !latestDate) return;
 
@@ -521,12 +612,9 @@ function renderLatestSummary() {
 
 function deleteRunningRecord(id) {
   const confirmed = confirm("이 러닝 기록을 삭제할까?");
-
   if (!confirmed) return;
 
-  state.records.running = state.records.running.filter(
-    (record) => record.id !== id
-  );
+  state.records.running = state.records.running.filter((record) => record.id !== id);
 
   saveRecords();
   render();
@@ -534,12 +622,9 @@ function deleteRunningRecord(id) {
 
 function deleteSleepRecord(id) {
   const confirmed = confirm("이 수면 기록을 삭제할까?");
-
   if (!confirmed) return;
 
-  state.records.sleep = state.records.sleep.filter(
-    (record) => record.id !== id
-  );
+  state.records.sleep = state.records.sleep.filter((record) => record.id !== id);
 
   saveRecords();
   render();
@@ -547,7 +632,6 @@ function deleteSleepRecord(id) {
 
 function handleReset() {
   const confirmed = confirm("모든 러닝/수면 기록을 삭제할까?");
-
   if (!confirmed) return;
 
   state.records = {
@@ -556,6 +640,8 @@ function handleReset() {
   };
 
   saveRecords();
+  cancelRunningEdit(false);
+  cancelSleepEdit(false);
   render();
 }
 
@@ -628,7 +714,6 @@ function formatDuration(minutes) {
   const mins = total % 60;
 
   if (hours <= 0) return `${mins}분`;
-
   if (mins === 0) return `${hours}시간`;
 
   return `${hours}시간 ${mins}분`;
@@ -721,9 +806,36 @@ function scrollToInput() {
   });
 }
 
+function filterRecentDays(records, days) {
+  const now = new Date();
+  const start = new Date();
+
+  start.setDate(now.getDate() - days + 1);
+  start.setHours(0, 0, 0, 0);
+
+  return records.filter((record) => {
+    const date = new Date(record.date);
+    if (Number.isNaN(date.getTime())) return false;
+
+    return date >= start && date <= now;
+  });
+}
+
+function getExistingCreatedAt(type, id) {
+  const record = state.records[type].find((item) => item.id === id);
+  return record?.createdAt || new Date().toISOString();
+}
+
+function sortRecords() {
+  state.records.running.sort((a, b) => new Date(b.date) - new Date(a.date));
+  state.records.sleep.sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
 /* =========================
-   Expose delete functions
+   Expose functions
    ========================= */
 
 window.deleteRunningRecord = deleteRunningRecord;
 window.deleteSleepRecord = deleteSleepRecord;
+window.startRunningEdit = startRunningEdit;
+window.startSleepEdit = startSleepEdit;
