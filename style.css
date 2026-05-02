@@ -1235,3 +1235,31 @@ label {
     font-size: 16px;
   }
 }
+/* =========================
+   View Tabs
+   ========================= */
+
+.view-panel.hide {
+  display: none;
+}
+
+.nav button {
+  padding: 9px 12px;
+  border-radius: 999px;
+  color: var(--text-soft);
+  font-size: 14px;
+  font-weight: 700;
+  background: transparent;
+  transition: 0.18s ease;
+}
+
+.nav button:hover,
+.nav button.active {
+  color: var(--text);
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.header-actions button.btn-primary,
+.mobile-sticky-input button.btn-primary {
+  border: 0;
+}
