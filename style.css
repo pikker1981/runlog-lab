@@ -31,13 +31,15 @@
 }
 
 html {
-  scroll-behavior: smooth;
   width: 100%;
+  max-width: 100%;
   overflow-x: hidden;
+  scroll-behavior: smooth;
 }
 
 body {
   width: 100%;
+  max-width: 100%;
   margin: 0;
   min-height: 100vh;
   overflow-x: hidden;
@@ -75,6 +77,7 @@ a {
 
 .app {
   width: 100%;
+  max-width: 100%;
   min-height: 100vh;
   overflow-x: hidden;
 }
@@ -90,9 +93,7 @@ a {
   display: none !important;
 }
 
-/* =========================
-   Header
-   ========================= */
+/* Header */
 
 .header {
   position: sticky;
@@ -167,9 +168,7 @@ a {
   gap: 10px;
 }
 
-/* =========================
-   Buttons
-   ========================= */
+/* Buttons */
 
 .btn {
   display: inline-flex;
@@ -222,9 +221,7 @@ a {
   background: rgba(251, 113, 133, 0.24);
 }
 
-/* =========================
-   Hero
-   ========================= */
+/* Hero */
 
 .hero {
   padding: 72px 0 42px;
@@ -319,6 +316,8 @@ a {
   letter-spacing: -0.04em;
   word-break: break-word;
 }
+
+/* Summary */
 
 .summary-card {
   position: relative;
@@ -434,9 +433,7 @@ a {
   font-weight: 800;
 }
 
-/* =========================
-   Sections
-   ========================= */
+/* Sections */
 
 .section {
   padding: 44px 0;
@@ -481,9 +478,7 @@ a {
   word-break: keep-all;
 }
 
-/* =========================
-   Cards / Dashboard
-   ========================= */
+/* Cards */
 
 .dashboard-grid {
   display: grid;
@@ -506,6 +501,7 @@ a {
   min-width: 0;
   max-width: 100%;
   padding: 22px;
+  overflow: hidden;
 }
 
 .card-sm {
@@ -582,9 +578,7 @@ a {
   word-break: keep-all;
 }
 
-/* =========================
-   Forms
-   ========================= */
+/* Forms */
 
 .form-grid {
   display: grid;
@@ -654,9 +648,7 @@ label {
   margin-top: 18px;
 }
 
-/* =========================
-   Tables
-   ========================= */
+/* Table 기본 */
 
 .table-wrap {
   width: 100%;
@@ -670,7 +662,7 @@ label {
 }
 
 .table {
-  width: max-content;
+  width: 100%;
   min-width: 900px;
   border-collapse: collapse;
 }
@@ -733,9 +725,7 @@ label {
   font-size: 14px;
 }
 
-/* =========================
-   Summary / Criteria
-   ========================= */
+/* Summary / Criteria */
 
 .summary-panel {
   display: grid;
@@ -814,9 +804,7 @@ label {
   word-break: keep-all;
 }
 
-/* =========================
-   Edit / Actions
-   ========================= */
+/* Edit / Actions */
 
 .editing-banner {
   display: none;
@@ -849,9 +837,7 @@ label {
   font-size: 12px;
 }
 
-/* =========================
-   Footer / Mobile Nav
-   ========================= */
+/* Footer / Mobile Nav */
 
 .footer {
   margin-top: 40px;
@@ -873,9 +859,7 @@ label {
   display: none;
 }
 
-/* =========================
-   Responsive
-   ========================= */
+/* Tablet */
 
 @media (max-width: 980px) {
   .hero-grid {
@@ -883,7 +867,7 @@ label {
   }
 
   .summary-card {
-    max-width: 620px;
+    max-width: 100%;
   }
 
   .card-sm,
@@ -900,7 +884,9 @@ label {
   }
 }
 
-@media (max-width: 720px) {
+/* Mobile / App WebView 대응: 900px까지 모바일로 처리 */
+
+@media (max-width: 900px) {
   body {
     padding-bottom: 84px;
   }
@@ -923,10 +909,7 @@ label {
     display: none;
   }
 
-  .header-actions .btn-secondary {
-    display: none;
-  }
-
+  .header-actions .btn-secondary,
   .header-actions .btn-primary {
     display: none;
   }
@@ -935,16 +918,21 @@ label {
     padding: 32px 0 22px;
   }
 
+  .hero-grid {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
   .hero-copy {
-    padding: 28px 22px;
+    padding: 24px 18px;
   }
 
   .hero h1 {
-    font-size: 42px;
+    font-size: 38px;
   }
 
   .hero-desc {
-    font-size: 15px;
+    font-size: 14px;
   }
 
   .hero-actions {
@@ -956,6 +944,10 @@ label {
   }
 
   .hero-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-grid {
     grid-template-columns: 1fr;
   }
 
@@ -981,6 +973,7 @@ label {
   .card {
     width: 100%;
     max-width: 100%;
+    border-radius: 22px;
   }
 
   .card-body {
@@ -990,12 +983,13 @@ label {
     overflow: hidden;
   }
 
-  .field {
-    grid-column: 1 / -1;
+  .form-grid {
+    grid-template-columns: 1fr;
   }
 
-  .metric-grid {
-    grid-template-columns: 1fr;
+  .field,
+  .field-full {
+    grid-column: 1 / -1;
   }
 
   .summary-panel {
@@ -1021,29 +1015,135 @@ label {
     font-size: 16px;
   }
 
-  .table-wrap {
+  /* 모바일 기록 내역: 표를 카드형으로 강제 변환 */
+  #history .table-wrap {
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  #history .table {
     display: block;
     width: 100%;
-    max-width: 100%;
-    margin: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
+    min-width: 0;
   }
 
-  .table {
-    width: max-content;
-    min-width: 880px;
+  #history .table thead {
+    display: none;
   }
 
-  .table th,
-  .table td {
-    padding: 12px 13px;
-    font-size: 13px;
+  #history .table tbody {
+    display: grid;
+    gap: 12px;
+    width: 100%;
+  }
+
+  #history .table tr {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    width: 100%;
+    padding: 14px;
+    border-radius: 18px;
+    background: rgba(15, 23, 42, 0.58);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+  }
+
+  #history .table td {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+    white-space: normal;
+    font-size: 14px;
+  }
+
+  #history .table td:last-child {
+    border-bottom: 0;
+  }
+
+  #history .table td::before {
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  #runningTableBody td:nth-child(1)::before {
+    content: "날짜";
+  }
+
+  #runningTableBody td:nth-child(2)::before {
+    content: "거리";
+  }
+
+  #runningTableBody td:nth-child(3)::before {
+    content: "시간";
+  }
+
+  #runningTableBody td:nth-child(4)::before {
+    content: "페이스";
+  }
+
+  #runningTableBody td:nth-child(5)::before {
+    content: "평균 심박";
+  }
+
+  #runningTableBody td:nth-child(6)::before {
+    content: "케이던스";
+  }
+
+  #runningTableBody td:nth-child(7)::before {
+    content: "앱점수";
+  }
+
+  #runningTableBody td:nth-child(8)::before {
+    content: "관리";
+  }
+
+  #sleepTableBody td:nth-child(1)::before {
+    content: "날짜";
+  }
+
+  #sleepTableBody td:nth-child(2)::before {
+    content: "총 수면";
+  }
+
+  #sleepTableBody td:nth-child(3)::before {
+    content: "수면점수";
+  }
+
+  #sleepTableBody td:nth-child(4)::before {
+    content: "바디배터리";
+  }
+
+  #sleepTableBody td:nth-child(5)::before {
+    content: "깊은 수면";
+  }
+
+  #sleepTableBody td:nth-child(6)::before {
+    content: "REM 수면";
+  }
+
+  #sleepTableBody td:nth-child(7)::before {
+    content: "안정시 심박";
+  }
+
+  #sleepTableBody td:nth-child(8)::before {
+    content: "앱점수";
+  }
+
+  #sleepTableBody td:nth-child(9)::before {
+    content: "관리";
   }
 
   .table-actions {
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
   }
 
   .table-actions .btn {
@@ -1102,7 +1202,7 @@ label {
 
 @media (max-width: 420px) {
   .hero h1 {
-    font-size: 38px;
+    font-size: 36px;
   }
 
   .summary-card {
@@ -1123,7 +1223,7 @@ label {
     font-size: 36px;
   }
 
-  .table {
-    min-width: 840px;
+  #history .table td {
+    grid-template-columns: 96px minmax(0, 1fr);
   }
 }
