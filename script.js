@@ -3,6 +3,10 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const STORAGE_KEY = "runlog_lab_records_v1";
 
+const TREND_AXIS_MIN = 50;
+const TREND_AXIS_MAX = 100;
+const TREND_AXIS_TICKS = [100, 90, 80, 70, 60, 50];
+
 const hasSupabaseConfig =
   SUPABASE_URL &&
   SUPABASE_ANON_KEY &&
@@ -1037,33 +1041,44 @@ function getTrendData() {
     grouped.get(dateKey).push(value);
   });
 
-  let data = Array.from(grouped.entries())
+  const groupedData = Array.from(grouped.entries())
     .map(([date, values]) => ({
       date,
       value: values.reduce((acc, value) => acc + value, 0) / values.length,
+      hasData: true,
     }))
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  if (state.currentTrendRange === "all" || data.length === 0) {
-    return data;
+  if (state.currentTrendRange === "all" || groupedData.length === 0) {
+    return groupedData;
   }
 
   const days = Number(state.currentTrendRange);
-  const latest = new Date(data[data.length - 1].date);
+  const latest = new Date(groupedData[groupedData.length - 1].date);
   latest.setHours(23, 59, 59, 999);
 
   const start = new Date(latest);
   start.setDate(start.getDate() - days + 1);
   start.setHours(0, 0, 0, 0);
 
-  data = data.filter((item) => {
-    const date = new Date(item.date);
-    if (Number.isNaN(date.getTime())) return false;
-    date.setHours(0, 0, 0, 0);
-    return date >= start && date <= latest;
-  });
+  const valueByDate = new Map(groupedData.map((item) => [item.date, item.value]));
+  const timeline = [];
 
-  return data;
+  for (let index = 0; index < days; index += 1) {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+
+    const dateKey = toDateKey(date);
+    const value = valueByDate.get(dateKey);
+
+    timeline.push({
+      date: dateKey,
+      value: Number.isFinite(value) ? value : null,
+      hasData: Number.isFinite(value),
+    });
+  }
+
+  return timeline;
 }
 
 function getTrendMetricValue(record, metric) {
@@ -1092,8 +1107,23 @@ function updateTrendSummary(data) {
     return;
   }
 
-  const values = data.map((item) => item.value);
-  const latest = data[data.length - 1].value;
+  const validData = data.filter((item) => Number.isFinite(item.value));
+
+  if (!validData.length) {
+    trendLatestValue.textContent = "-";
+    trendAverageValue.textContent = "-";
+    trendMaxValue.textContent = "-";
+    trendMinValue.textContent = "-";
+
+    if (trendNote) {
+      trendNote.textContent = "선택한 기간에 표시할 기록이 없습니다.";
+    }
+
+    return;
+  }
+
+  const values = validData.map((item) => item.value);
+  const latest = validData[validData.length - 1].value;
   const averageValue = values.reduce((acc, value) => acc + value, 0) / values.length;
 
   trendLatestValue.textContent = formatTrendValue(latest, metric);
@@ -1106,8 +1136,9 @@ function updateTrendSummary(data) {
     const chartType = state.currentTrendRange === "1" || state.currentTrendRange === "7"
       ? "막대 + 선"
       : "선";
+    const axisConfig = getTrendAxisConfig(metric);
 
-    trendNote.textContent = `${rangeLabel} · ${metric.label} · ${chartType} 그래프로 표시 중`;
+    trendNote.textContent = `${rangeLabel} · ${metric.label} · 좌측 축 ${axisConfig.label} 고정 · 날짜 순서 기준 · ${chartType} 그래프로 표시 중`;
   }
 }
 
@@ -1153,62 +1184,76 @@ function drawTrendChart(data, progress) {
 
   const padding = {
     top: 28,
-    right: 22,
+    right: 30,
     bottom: 54,
-    left: 54,
+    left: 68,
   };
 
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
 
-  drawTrendGrid(ctx, padding, chartWidth, chartHeight);
+  drawTrendGrid(ctx, padding, chartWidth, chartHeight, getTrendAxisConfig(getCurrentTrendMetric()));
 
-  if (!data.length) {
+  const validData = data.filter((item) => Number.isFinite(item.value));
+
+  if (!validData.length) {
     drawTrendEmpty(ctx, width, height);
     return;
   }
 
-  const values = data.map((item) => item.value);
-  const rawMin = Math.min(...values);
-  const rawMax = Math.max(...values);
-  const diff = rawMax - rawMin || Math.max(rawMax, 1);
-  const min = Math.max(0, rawMin - diff * 0.12);
-  const max = rawMax + diff * 0.12;
+  const metric = getCurrentTrendMetric();
+  const axisConfig = getTrendAxisConfig(metric);
+  const min = axisConfig.min;
+  const max = axisConfig.max;
+  const slotCount = Math.max(data.length, 1);
+  const slotWidth = chartWidth / slotCount;
 
   const points = data.map((item, index) => {
-    const x = data.length === 1
-      ? padding.left + chartWidth / 2
-      : padding.left + (chartWidth * index) / (data.length - 1);
+    const x = padding.left + slotWidth * (index + 0.5);
 
-    const ratio = (item.value - min) / (max - min || 1);
+    if (!Number.isFinite(item.value)) {
+      return {
+        ...item,
+        x,
+        y: null,
+        axisValue: null,
+      };
+    }
+
+    const axisValue = getTrendAxisDisplayValue(item.value, metric, axisConfig);
+    const clippedAxisValue = clamp(axisValue, min, max);
+    const ratio = (clippedAxisValue - min) / (max - min || 1);
     const y = padding.top + chartHeight - ratio * chartHeight;
 
-    return { ...item, x, y };
+    return { ...item, x, y, axisValue };
   });
 
-  drawTrendYAxis(ctx, padding, chartHeight, min, max);
+  drawTrendYAxis(ctx, padding, chartHeight, axisConfig);
   drawTrendXAxis(ctx, points, padding, chartHeight);
 
+  const validPoints = points.filter((point) => Number.isFinite(point.value) && Number.isFinite(point.y) && Number.isFinite(point.axisValue));
+
   if (state.currentTrendRange === "1" || state.currentTrendRange === "7") {
-    drawTrendBars(ctx, points, padding, chartHeight, progress);
+    drawTrendBars(ctx, validPoints, padding, chartHeight, progress, slotWidth);
   }
 
-  drawTrendLine(ctx, points, progress);
-  drawTrendDots(ctx, points, progress);
+  drawTrendLine(ctx, validPoints, progress);
+  drawTrendDots(ctx, validPoints, progress);
 }
 
-function drawTrendGrid(ctx, padding, chartWidth, chartHeight) {
+function drawTrendGrid(ctx, padding, chartWidth, chartHeight, axisConfig) {
   ctx.save();
   ctx.strokeStyle = "rgba(148, 163, 184, 0.14)";
   ctx.lineWidth = 1;
 
-  for (let i = 0; i <= 4; i += 1) {
-    const y = padding.top + (chartHeight / 4) * i;
+  axisConfig.ticks.forEach((value) => {
+    const ratio = (value - axisConfig.min) / (axisConfig.max - axisConfig.min || 1);
+    const y = padding.top + chartHeight - ratio * chartHeight;
     ctx.beginPath();
     ctx.moveTo(padding.left, y);
     ctx.lineTo(padding.left + chartWidth, y);
     ctx.stroke();
-  }
+  });
 
   ctx.strokeStyle = "rgba(148, 163, 184, 0.26)";
   ctx.beginPath();
@@ -1219,18 +1264,18 @@ function drawTrendGrid(ctx, padding, chartWidth, chartHeight) {
   ctx.restore();
 }
 
-function drawTrendYAxis(ctx, padding, chartHeight, min, max) {
+function drawTrendYAxis(ctx, padding, chartHeight, axisConfig) {
   ctx.save();
   ctx.fillStyle = "rgba(203, 213, 225, 0.76)";
   ctx.font = "12px Pretendard, system-ui, sans-serif";
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
 
-  for (let i = 0; i <= 4; i += 1) {
-    const value = max - ((max - min) / 4) * i;
-    const y = padding.top + (chartHeight / 4) * i;
-    ctx.fillText(formatTrendAxisValue(value), padding.left - 8, y);
-  }
+  axisConfig.ticks.forEach((value) => {
+    const ratio = (value - axisConfig.min) / (axisConfig.max - axisConfig.min || 1);
+    const y = padding.top + chartHeight - ratio * chartHeight;
+    ctx.fillText(formatTrendAxisTick(value), padding.left - 8, y);
+  });
 
   ctx.restore();
 }
@@ -1242,8 +1287,11 @@ function drawTrendXAxis(ctx, points, padding, chartHeight) {
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
 
+  const range = state.currentTrendRange;
   const maxLabelCount = window.innerWidth <= 900 ? 4 : 7;
-  const step = Math.max(1, Math.ceil(points.length / maxLabelCount));
+  const step = range === "7" || range === "1"
+    ? 1
+    : Math.max(1, Math.ceil(points.length / maxLabelCount));
 
   points.forEach((point, index) => {
     const isLast = index === points.length - 1;
@@ -1254,11 +1302,11 @@ function drawTrendXAxis(ctx, points, padding, chartHeight) {
   ctx.restore();
 }
 
-function drawTrendBars(ctx, points, padding, chartHeight, progress) {
+function drawTrendBars(ctx, points, padding, chartHeight, progress, slotWidth) {
   ctx.save();
   const baseline = padding.top + chartHeight;
-  const gap = points.length > 1 ? points[1].x - points[0].x : 86;
-  const barWidth = Math.min(48, Math.max(22, gap * 0.42));
+  const baseWidth = Number.isFinite(slotWidth) ? slotWidth : 86;
+  const barWidth = Math.min(46, Math.max(18, baseWidth * 0.38));
 
   points.forEach((point) => {
     const animatedHeight = (baseline - point.y) * progress;
@@ -1360,6 +1408,169 @@ function drawRoundedRect(ctx, x, y, width, height, radius) {
   ctx.lineTo(x, y + safeRadius);
   ctx.quadraticCurveTo(x, y, x + safeRadius, y);
   ctx.closePath();
+}
+
+
+function getTrendAxisConfig(metric) {
+  const key = metric ? metric.key : "";
+
+  if (key === "totalSleepMin") {
+    return { min: 300, max: 500, ticks: [500, 450, 400, 350, 300], label: "300~500분", mode: "raw" };
+  }
+
+  if (key === "deepSleepMin" || key === "remSleepMin") {
+    return { min: 0, max: 200, ticks: [200, 150, 100, 50, 0], label: "0~200분", mode: "raw" };
+  }
+
+  if (key === "deepSleepRatio" || key === "remSleepRatio") {
+    return { min: 0, max: 50, ticks: [50, 40, 30, 20, 10, 0], label: "0~50%", mode: "raw" };
+  }
+
+  if (key === "restingHeartRate") {
+    return { min: 40, max: 70, ticks: [70, 65, 60, 55, 50, 45, 40], label: "40~70bpm", mode: "raw" };
+  }
+
+  return { min: TREND_AXIS_MIN, max: TREND_AXIS_MAX, ticks: TREND_AXIS_TICKS, label: "50~100", mode: "score" };
+}
+
+function getTrendAxisDisplayValue(value, metric, axisConfig) {
+  const raw = toNumber(value);
+
+  if (!Number.isFinite(raw)) {
+    return axisConfig.min;
+  }
+
+  if (axisConfig.mode === "raw") {
+    return raw;
+  }
+
+  return getTrendAxisScore(raw, metric);
+}
+
+function formatTrendAxisTick(value) {
+  if (!Number.isFinite(value)) return "-";
+
+  return Number.isInteger(value)
+    ? String(value)
+    : value.toFixed(1).replace(/\.0$/, "");
+}
+
+function getTrendAxisScore(value, metric) {
+  const raw = toNumber(value);
+
+  if (!Number.isFinite(raw)) return TREND_AXIS_MIN;
+
+  if (metric && metric.key === "totalSleepMin") {
+    return scoreSleepDurationForAxis(raw);
+  }
+
+  if (metric && (metric.key === "deepSleepRatio" || metric.key === "remSleepRatio")) {
+    return scoreRatioForAxis(raw, metric.key);
+  }
+
+  if (metric && (metric.key === "deepSleepMin" || metric.key === "remSleepMin")) {
+    return normalizeToAxis(raw, 0, 120);
+  }
+
+  if (metric && metric.key === "restingHeartRate") {
+    return normalizeToAxis(raw, 90, 50, true);
+  }
+
+  if (metric && (metric.key === "score" || metric.key === "sleepScore" || metric.key === "bodyBatteryScore")) {
+    return clamp(raw, TREND_AXIS_MIN, TREND_AXIS_MAX);
+  }
+
+  if (metric && metric.key === "avgPace") {
+    return normalizeToAxis(raw, 420, 300, true);
+  }
+
+  if (metric && metric.key === "avgHeartRate") {
+    return normalizeToAxis(raw, 178, 130, true);
+  }
+
+  if (metric && metric.key === "maxHeartRate") {
+    return normalizeToAxis(raw, 195, 150, true);
+  }
+
+  if (metric && metric.key === "cadence") {
+    return scoreTargetRangeForAxis(raw, 165, 185, 145, 200);
+  }
+
+  if (metric && metric.key === "verticalRatio") {
+    return normalizeToAxis(raw, 11, 7, true);
+  }
+
+  if (metric && metric.key === "groundContactTime") {
+    return normalizeToAxis(raw, 310, 220, true);
+  }
+
+  const absoluteRange = getAbsoluteRangeForMetric(metric ? metric.key : "");
+  return normalizeToAxis(raw, absoluteRange.min, absoluteRange.max, false);
+}
+
+function getAbsoluteRangeForMetric(key) {
+  const ranges = {
+    distanceKm: { min: 0, max: 10 },
+    durationMin: { min: 0, max: 60 },
+    calories: { min: 0, max: 700 },
+    avgSpeed: { min: 6, max: 13 },
+    strideLength: { min: 0.6, max: 1.3 },
+  };
+
+  return ranges[key] || { min: 0, max: 100 };
+}
+
+function normalizeToAxis(value, minValue, maxValue, inverse = false) {
+  if (!Number.isFinite(value)) return TREND_AXIS_MIN;
+
+  const low = Math.min(minValue, maxValue);
+  const high = Math.max(minValue, maxValue);
+  const safeRange = high - low || 1;
+  const clipped = clamp(value, low, high);
+  let ratio = (clipped - low) / safeRange;
+
+  if (inverse) {
+    ratio = 1 - ratio;
+  }
+
+  return TREND_AXIS_MIN + ratio * (TREND_AXIS_MAX - TREND_AXIS_MIN);
+}
+
+function scoreSleepDurationForAxis(minutes) {
+  const hours = minutes / 60;
+
+  if (hours >= 7 && hours <= 9) return 100;
+  if (hours >= 6 && hours < 7) return normalizeToAxis(hours, 5, 7, false);
+  if (hours > 9 && hours <= 10) return normalizeToAxis(hours, 10, 9, false);
+  if (hours >= 5 && hours < 6) return normalizeToAxis(hours, 4, 6, false);
+
+  return TREND_AXIS_MIN;
+}
+
+function scoreRatioForAxis(value, key) {
+  if (key === "deepSleepRatio") {
+    return scoreTargetRangeForAxis(value, 13, 23, 5, 32);
+  }
+
+  if (key === "remSleepRatio") {
+    return scoreTargetRangeForAxis(value, 20, 25, 10, 35);
+  }
+
+  return normalizeToAxis(value, 0, 100);
+}
+
+function scoreTargetRangeForAxis(value, targetMin, targetMax, hardMin, hardMax) {
+  if (!Number.isFinite(value)) return TREND_AXIS_MIN;
+
+  if (value >= targetMin && value <= targetMax) {
+    return TREND_AXIS_MAX;
+  }
+
+  if (value < targetMin) {
+    return normalizeToAxis(value, hardMin, targetMin, false);
+  }
+
+  return normalizeToAxis(value, hardMax, targetMax, false);
 }
 
 function getCurrentTrendMetric() {
@@ -1484,6 +1695,14 @@ function formatNullableScore(value) {
   if (number <= 0) return "-";
 
   return `${formatNumber(number, 0)}점`;
+}
+
+function toDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function formatDate(dateString) {
