@@ -659,9 +659,9 @@ a {
   font-weight: 600;
 }
 
-/* 평균 수면 점수 — 소프트 피치 */
+/* 평균 수면 점수 — 딥 플럼 */
 .big-number:has([data-avg-sleep-score]) {
-  color: #ecc6c4;
+  color: #77447e;
   font-weight: 600;
 }
 
@@ -755,7 +755,7 @@ a {
 }
 
 .dashboard-grid > .card:has([data-avg-sleep-score]) {
-  --card-tint-rgb: 236, 198, 196;
+  --card-tint-rgb: 119, 68, 126;
   --card-icon: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z'/%3E%3C/svg%3E");
 }
 
