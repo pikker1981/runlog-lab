@@ -1393,7 +1393,11 @@ function drawTrendBars(ctx, points, padding, chartHeight, progress, slotWidth) {
     const x = point.x - barWidth / 2;
     const y = baseline - animatedHeight;
 
-    ctx.fillStyle = "rgba(82, 82, 82, 0.42)";
+    const gradient = ctx.createLinearGradient(0, y, 0, baseline);
+    gradient.addColorStop(0, "rgba(82, 82, 82, 0.46)");
+    gradient.addColorStop(1, "rgba(163, 230, 53, 0.00)");
+
+    ctx.fillStyle = gradient;
     drawRoundedRect(ctx, x, y, barWidth, animatedHeight, 9);
     ctx.fill();
   });
@@ -1410,7 +1414,7 @@ function drawTrendLine(ctx, points, progress) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.shadowColor = "rgba(0, 0, 0, 0)";
-  ctx.shadowBlur = 0;
+  ctx.shadowBlur = 10;
 
   const totalSegments = Math.max(points.length - 1, 1);
   const animatedLength = totalSegments * progress;
@@ -1448,7 +1452,7 @@ function drawTrendDots(ctx, points, progress) {
     if (dotProgress <= 0) return;
 
     ctx.beginPath();
-    ctx.fillStyle = "#0b0f14";
+    ctx.fillStyle = "#ffffff";
     ctx.strokeStyle = "#262626";
     ctx.lineWidth = 3;
     ctx.arc(point.x, point.y, 5 * dotProgress, 0, Math.PI * 2);
@@ -1575,9 +1579,9 @@ function drawTrendSingleValueLabel(ctx, point, metric, isHover = false) {
   x = clamp(x, boxWidth / 2 + 4, canvasWidth - boxWidth / 2 - 4);
 
   ctx.save();
-  ctx.shadowColor = "rgba(0, 0, 0, 0)";
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = "#ffffff";
+  ctx.shadowColor = `rgba(${TREND_HIGHLIGHT_RGB}, 0.36)`;
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = isHover ? "rgba(8, 21, 30, 0.94)" : "rgba(11, 15, 20, 0.88)";
   ctx.strokeStyle = `rgba(${TREND_HIGHLIGHT_RGB}, 0.72)`;
   ctx.lineWidth = 1;
   drawRoundedRect(ctx, x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight, 11);
