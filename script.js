@@ -6,6 +6,9 @@ const STORAGE_KEY = "runlog_lab_records_v1";
 const TREND_AXIS_MIN = 50;
 const TREND_AXIS_MAX = 100;
 const TREND_AXIS_TICKS = [100, 90, 80, 70, 60, 50];
+const TREND_HIGHLIGHT_RGB = "56, 189, 248";
+const TREND_HIGHLIGHT_HEX = "#38bdf8";
+
 
 const hasSupabaseConfig =
   SUPABASE_URL &&
@@ -59,6 +62,9 @@ const trendMetricConfig = {
 };
 
 let trendAnimationFrameId = null;
+let trendRenderedPoints = [];
+let trendHoverPointKey = null;
+
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => document.querySelectorAll(selector);
@@ -977,7 +983,72 @@ function bindTrendEvents() {
     });
   }
 
+  if (trendChart) {
+    trendChart.addEventListener("mousemove", handleTrendChartPointerMove);
+    trendChart.addEventListener("mouseleave", clearTrendChartHover);
+    trendChart.addEventListener("touchstart", handleTrendChartPointerMove, { passive: true });
+    trendChart.addEventListener("touchmove", handleTrendChartPointerMove, { passive: true });
+    trendChart.addEventListener("touchend", clearTrendChartHover);
+  }
+
   window.addEventListener("resize", debounce(renderTrendChart, 160));
+}
+
+function handleTrendChartPointerMove(event) {
+  if (!trendChart || !trendRenderedPoints.length) return;
+
+  const pointer = getTrendPointerPosition(event);
+  if (!pointer) return;
+
+  const nearest = findNearestTrendPoint(pointer.x, pointer.y);
+  const nextKey = nearest ? getTrendPointKey(nearest) : null;
+
+  if (trendHoverPointKey !== nextKey) {
+    trendHoverPointKey = nextKey;
+  }
+}
+
+function clearTrendChartHover() {
+  trendHoverPointKey = null;
+}
+
+function getTrendPointerPosition(event) {
+  const source = event.touches && event.touches.length ? event.touches[0] : event;
+  if (!source || typeof source.clientX !== "number" || typeof source.clientY !== "number") {
+    return null;
+  }
+
+  const rect = trendChart.getBoundingClientRect();
+
+  return {
+    x: source.clientX - rect.left,
+    y: source.clientY - rect.top,
+  };
+}
+
+function findNearestTrendPoint(x, y) {
+  let nearest = null;
+  let nearestDistance = Infinity;
+
+  trendRenderedPoints.forEach((point) => {
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
+
+    const dx = point.x - x;
+    const dy = point.y - y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance < nearestDistance) {
+      nearest = point;
+      nearestDistance = distance;
+    }
+  });
+
+  return nearestDistance <= 34 ? nearest : null;
+}
+
+function getTrendPointKey(point) {
+  if (!point) return "";
+  return `${point.date}|${point.value}|${point.x}`;
 }
 
 function renderTrendMetricOptions() {
@@ -1197,6 +1268,8 @@ function drawTrendChart(data, progress, pulse = 1) {
   const validData = data.filter((item) => Number.isFinite(item.value));
 
   if (!validData.length) {
+    trendRenderedPoints = [];
+    trendHoverPointKey = null;
     drawTrendEmpty(ctx, width, height);
     return;
   }
@@ -1233,6 +1306,8 @@ function drawTrendChart(data, progress, pulse = 1) {
 
   const validPoints = points.filter((point) => Number.isFinite(point.value) && Number.isFinite(point.y) && Number.isFinite(point.axisValue));
 
+  trendRenderedPoints = validPoints.map((point) => ({ ...point }));
+
   const extremeInfo = getTrendExtremeInfo(validPoints, metric);
 
   if (state.currentTrendRange === "1" || state.currentTrendRange === "7") {
@@ -1243,6 +1318,7 @@ function drawTrendChart(data, progress, pulse = 1) {
   drawTrendDots(ctx, validPoints, progress);
   drawTrendExtremePulse(ctx, extremeInfo, pulse, progress);
   drawTrendValueLabels(ctx, validPoints, metric, extremeInfo, progress);
+  drawTrendHoverValueLabel(ctx, validPoints, metric);
 }
 
 function drawTrendGrid(ctx, padding, chartWidth, chartHeight, axisConfig) {
@@ -1436,12 +1512,12 @@ function drawTrendExtremePulse(ctx, extremeInfo, pulse, progress) {
     const alpha = 0.18 + pulse * 0.42;
 
     ctx.beginPath();
-    ctx.fillStyle = `rgba(163, 230, 53, ${alpha})`;
+    ctx.fillStyle = `rgba(${TREND_HIGHLIGHT_RGB}, ${alpha})`;
     ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.beginPath();
-    ctx.strokeStyle = `rgba(163, 230, 53, ${0.55 + pulse * 0.35})`;
+    ctx.strokeStyle = `rgba(${TREND_HIGHLIGHT_RGB}, ${0.55 + pulse * 0.35})`;
     ctx.lineWidth = 2;
     ctx.arc(point.x, point.y, 6 + pulse * 2, 0, Math.PI * 2);
     ctx.stroke();
@@ -1485,7 +1561,7 @@ function getTrendValueLabelTargets(points, extremeInfo) {
     });
 }
 
-function drawTrendSingleValueLabel(ctx, point, metric) {
+function drawTrendSingleValueLabel(ctx, point, metric, isHover = false) {
   const label = formatTrendLabelValue(point.value, metric);
   const paddingX = 7;
   const boxHeight = 22;
@@ -1494,7 +1570,7 @@ function drawTrendSingleValueLabel(ctx, point, metric) {
   const canvasWidth = parseFloat(trendChart.style.width) || 720;
 
   let x = point.x;
-  let y = point.y - 24;
+  let y = point.y - (isHover ? 34 : 24);
 
   if (y < 18) {
     y = point.y + 24;
@@ -1503,18 +1579,39 @@ function drawTrendSingleValueLabel(ctx, point, metric) {
   x = clamp(x, boxWidth / 2 + 4, canvasWidth - boxWidth / 2 - 4);
 
   ctx.save();
-  ctx.shadowColor = "rgba(163, 230, 53, 0.32)";
+  ctx.shadowColor = `rgba(${TREND_HIGHLIGHT_RGB}, 0.36)`;
   ctx.shadowBlur = 10;
-  ctx.fillStyle = "rgba(11, 15, 20, 0.88)";
-  ctx.strokeStyle = "rgba(163, 230, 53, 0.52)";
+  ctx.fillStyle = isHover ? "rgba(8, 21, 30, 0.94)" : "rgba(11, 15, 20, 0.88)";
+  ctx.strokeStyle = `rgba(${TREND_HIGHLIGHT_RGB}, 0.72)`;
   ctx.lineWidth = 1;
   drawRoundedRect(ctx, x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight, 11);
   ctx.fill();
   ctx.stroke();
 
   ctx.shadowBlur = 0;
-  ctx.fillStyle = "#f8fafc";
+  ctx.fillStyle = TREND_HIGHLIGHT_HEX;
   ctx.fillText(label, x, y + 0.5);
+  ctx.restore();
+}
+
+function drawTrendHoverValueLabel(ctx, points, metric) {
+  if (!trendHoverPointKey || !points.length) return;
+
+  const target = points.find((point) => getTrendPointKey(point) === trendHoverPointKey);
+  if (!target) return;
+
+  const fixedTargets = getTrendValueLabelTargets(points, getTrendExtremeInfo(points, metric));
+  const isAlreadyFixed = fixedTargets.some((point) => getTrendPointKey(point) === trendHoverPointKey);
+
+  if (isAlreadyFixed) return;
+
+  ctx.save();
+  ctx.font = "850 12px Pretendard, system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  drawTrendSingleValueLabel(ctx, target, metric, true);
+
   ctx.restore();
 }
 
