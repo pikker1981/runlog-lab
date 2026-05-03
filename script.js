@@ -622,35 +622,24 @@ function cancelSleepEdit(shouldReset = true) {
 }
 
 function calculateSleepScore(record) {
-  let score = 100;
-  const totalHours = record.totalSleepMin / 60;
-
-  if (totalHours >= 7 && totalHours <= 9) score -= 0;
-  else if (totalHours >= 6 && totalHours < 7) score -= 10;
-  else if (totalHours > 9 && totalHours <= 10) score -= 8;
-  else if (totalHours >= 5 && totalHours < 6) score -= 22;
-  else score -= 35;
-
-  if (record.deepSleepRatio >= 13 && record.deepSleepRatio <= 23) score -= 0;
-  else if (record.deepSleepRatio >= 10 && record.deepSleepRatio < 13) score -= 8;
-  else if (record.deepSleepRatio > 23 && record.deepSleepRatio <= 28) score -= 6;
-  else score -= 16;
-
-  if (record.remSleepRatio >= 20 && record.remSleepRatio <= 25) score -= 0;
-  else if (record.remSleepRatio >= 16 && record.remSleepRatio < 20) score -= 8;
-  else if (record.remSleepRatio > 25 && record.remSleepRatio <= 30) score -= 6;
-  else score -= 16;
-
-  if (record.restingHeartRate > 0) {
-    if (record.restingHeartRate <= 60) score -= 0;
-    else if (record.restingHeartRate <= 70) score -= 6;
-    else if (record.restingHeartRate <= 80) score -= 12;
-    else score -= 20;
-  }
+  const breakdown = calculateSleepScoreBreakdown(record);
+  const score = 100 + breakdown.totalImpact;
 
   return clamp(Math.round(score), 0, 100);
 }
 
+
+
+function getHighScoreBonus(value) {
+  const score = toNumber(value);
+
+  if (score >= 95) return 4;
+  if (score >= 90) return 3;
+  if (score >= 85) return 2;
+  if (score >= 80) return 1;
+
+  return 0;
+}
 
 function calculateSleepScoreBreakdown(record) {
   const totalHours = record.totalSleepMin / 60;
@@ -660,25 +649,43 @@ function calculateSleepScoreBreakdown(record) {
   let remSleepPenalty = 0;
   let restingHeartRatePenalty = 0;
 
-  if (totalHours >= 7 && totalHours <= 9) totalSleepPenalty = 0;
-  else if (totalHours >= 6 && totalHours < 7) totalSleepPenalty = 10;
+  let totalSleepBonus = 0;
+  let deepSleepBonus = 0;
+  let remSleepBonus = 0;
+  let restingHeartRateBonus = 0;
+  const sleepScoreBonus = getHighScoreBonus(record.sleepScore);
+  const bodyBatteryBonus = getHighScoreBonus(record.bodyBatteryScore);
+
+  if (totalHours >= 7 && totalHours <= 9) {
+    totalSleepPenalty = 0;
+    totalSleepBonus = totalHours >= 7.5 && totalHours <= 8.5 ? 8 : 5;
+  } else if (totalHours >= 6 && totalHours < 7) totalSleepPenalty = 10;
   else if (totalHours > 9 && totalHours <= 10) totalSleepPenalty = 8;
   else if (totalHours >= 5 && totalHours < 6) totalSleepPenalty = 22;
   else totalSleepPenalty = 35;
 
-  if (record.deepSleepRatio >= 13 && record.deepSleepRatio <= 23) deepSleepPenalty = 0;
-  else if (record.deepSleepRatio >= 10 && record.deepSleepRatio < 13) deepSleepPenalty = 8;
+  if (record.deepSleepRatio >= 13 && record.deepSleepRatio <= 23) {
+    deepSleepPenalty = 0;
+    deepSleepBonus = record.deepSleepRatio >= 15 && record.deepSleepRatio <= 21 ? 5 : 3;
+  } else if (record.deepSleepRatio >= 10 && record.deepSleepRatio < 13) deepSleepPenalty = 8;
   else if (record.deepSleepRatio > 23 && record.deepSleepRatio <= 28) deepSleepPenalty = 6;
   else deepSleepPenalty = 16;
 
-  if (record.remSleepRatio >= 20 && record.remSleepRatio <= 25) remSleepPenalty = 0;
-  else if (record.remSleepRatio >= 16 && record.remSleepRatio < 20) remSleepPenalty = 8;
+  if (record.remSleepRatio >= 20 && record.remSleepRatio <= 25) {
+    remSleepPenalty = 0;
+    remSleepBonus = record.remSleepRatio >= 21 && record.remSleepRatio <= 24 ? 5 : 3;
+  } else if (record.remSleepRatio >= 16 && record.remSleepRatio < 20) remSleepPenalty = 8;
   else if (record.remSleepRatio > 25 && record.remSleepRatio <= 30) remSleepPenalty = 6;
   else remSleepPenalty = 16;
 
   if (record.restingHeartRate > 0) {
-    if (record.restingHeartRate <= 60) restingHeartRatePenalty = 0;
-    else if (record.restingHeartRate <= 70) restingHeartRatePenalty = 6;
+    if (record.restingHeartRate <= 55) {
+      restingHeartRatePenalty = 0;
+      restingHeartRateBonus = 5;
+    } else if (record.restingHeartRate <= 60) {
+      restingHeartRatePenalty = 0;
+      restingHeartRateBonus = 2;
+    } else if (record.restingHeartRate <= 70) restingHeartRatePenalty = 6;
     else if (record.restingHeartRate <= 80) restingHeartRatePenalty = 12;
     else restingHeartRatePenalty = 20;
   }
@@ -689,30 +696,67 @@ function calculateSleepScoreBreakdown(record) {
     remSleepPenalty +
     restingHeartRatePenalty;
 
+  const totalBonus =
+    totalSleepBonus +
+    deepSleepBonus +
+    remSleepBonus +
+    restingHeartRateBonus +
+    sleepScoreBonus +
+    bodyBatteryBonus;
+
   return {
     totalSleepPenalty,
     deepSleepPenalty,
     remSleepPenalty,
     restingHeartRatePenalty,
+    totalSleepBonus,
+    deepSleepBonus,
+    remSleepBonus,
+    restingHeartRateBonus,
+    sleepScoreBonus,
+    bodyBatteryBonus,
     totalPenalty,
+    totalBonus,
+    totalImpact: totalBonus - totalPenalty,
   };
 }
 
-function formatSleepPenaltyBadge(value) {
-  const penalty = toNumber(value);
+function getSleepScoreImpact(penalty, bonus) {
+  const penaltyValue = toNumber(penalty);
+  const bonusValue = toNumber(bonus);
 
-  if (penalty <= 0) {
-    return '<span class="score-reason score-reason-good">+0</span>';
+  if (penaltyValue > 0) {
+    return -penaltyValue;
   }
 
-  return `<span class="score-reason">+${formatNumber(penalty, 0)}</span>`;
+  if (bonusValue > 0) {
+    return bonusValue;
+  }
+
+  return 0;
 }
 
-function formatSleepValueWithReason(value, reason, unit = "") {
+function formatSleepScoreImpactBadge(value) {
+  const impact = toNumber(value);
+
+  if (impact > 0) {
+    return `<span class="score-reason score-reason-bonus">+${formatNumber(impact, 0)}</span>`;
+  }
+
+  if (impact < 0) {
+    return `<span class="score-reason score-reason-penalty">${formatNumber(impact, 0)}</span>`;
+  }
+
+  return '<span class="score-reason score-reason-neutral">0</span>';
+}
+
+function formatSleepValueWithReason(value, penalty, bonus = 0) {
+  const impact = getSleepScoreImpact(penalty, bonus);
+
   return `
     <span class="sleep-value-with-reason">
-      <span>${value}${unit}</span>
-      ${formatSleepPenaltyBadge(reason)}
+      <span>${value}</span>
+      ${formatSleepScoreImpactBadge(impact)}
     </span>
   `;
 }
@@ -803,16 +847,16 @@ function renderSleepTable() {
       return `
         <tr>
           <td><strong>${formatDate(record.date)}</strong></td>
-          <td>${formatSleepValueWithReason(formatDuration(record.totalSleepMin), scoreReason.totalSleepPenalty)}</td>
-          <td>${formatNullableScore(record.sleepScore)}</td>
-          <td>${formatNullableScore(record.bodyBatteryScore)}</td>
-          <td>${formatSleepValueWithReason(`${formatNumber(record.deepSleepRatio, 1)}%`, scoreReason.deepSleepPenalty)}</td>
-          <td>${formatSleepValueWithReason(`${formatNumber(record.remSleepRatio, 1)}%`, scoreReason.remSleepPenalty)}</td>
-          <td>${formatSleepValueWithReason(`${formatNumber(record.restingHeartRate, 0)} bpm`, scoreReason.restingHeartRatePenalty)}</td>
+          <td>${formatSleepValueWithReason(formatDuration(record.totalSleepMin), scoreReason.totalSleepPenalty, scoreReason.totalSleepBonus)}</td>
+          <td>${formatSleepValueWithReason(formatNullableScore(record.sleepScore), 0, scoreReason.sleepScoreBonus)}</td>
+          <td>${formatSleepValueWithReason(formatNullableScore(record.bodyBatteryScore), 0, scoreReason.bodyBatteryBonus)}</td>
+          <td>${formatSleepValueWithReason(`${formatNumber(record.deepSleepRatio, 1)}%`, scoreReason.deepSleepPenalty, scoreReason.deepSleepBonus)}</td>
+          <td>${formatSleepValueWithReason(`${formatNumber(record.remSleepRatio, 1)}%`, scoreReason.remSleepPenalty, scoreReason.remSleepBonus)}</td>
+          <td>${formatSleepValueWithReason(`${formatNumber(record.restingHeartRate, 0)} bpm`, scoreReason.restingHeartRatePenalty, scoreReason.restingHeartRateBonus)}</td>
           <td>
             <span class="app-score-with-reason">
-              <strong>${record.score}</strong>
-              ${formatSleepPenaltyBadge(scoreReason.totalPenalty)}
+              <strong>${calculateSleepScore(record)}</strong>
+              ${formatSleepScoreImpactBadge(scoreReason.totalImpact)}
             </span>
           </td>
           <td>
@@ -1110,8 +1154,10 @@ function renderLatestSummary() {
     return;
   }
 
-  latestScoreValue.textContent = latest.score;
-  latestScoreLabel.textContent = getScoreLabel(latest.score);
+  const latestAppScore = latest.type === "sleep" ? calculateSleepScore(latest) : latest.score;
+
+  latestScoreValue.textContent = latestAppScore;
+  latestScoreLabel.textContent = getScoreLabel(latestAppScore);
 
   const typeLabel = latest.type === "running" ? "러닝" : "수면";
   latestDate.textContent = `${formatDate(latest.date)} 기준 최신 ${typeLabel} 기록`;
@@ -1391,6 +1437,10 @@ function getTrendData() {
 }
 
 function getTrendMetricValue(record, metric) {
+  if (state.currentTrendType === "sleep" && metric && metric.key === "score") {
+    return calculateSleepScore(record);
+  }
+
   if (metric.parser) {
     return metric.parser(record[metric.key]);
   }

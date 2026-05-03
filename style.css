@@ -1513,7 +1513,6 @@ label {
   align-items: center;
   justify-content: center;
   transform: translateY(-1px);
-  color: #dc2626;
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
@@ -1521,7 +1520,15 @@ label {
   white-space: nowrap;
 }
 
-.score-reason-good {
+.score-reason-penalty {
+  color: #dc2626;
+}
+
+.score-reason-bonus {
+  color: #2563eb;
+}
+
+.score-reason-neutral {
   color: #a3a3a3;
 }
 
