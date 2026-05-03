@@ -1164,18 +1164,18 @@ function animateTrendChart(data) {
   function frame(now) {
     const progress = Math.min((now - startedAt) / duration, 1);
     const eased = easeOutCubic(progress);
+    const pulse = 0.5 + Math.sin(now / 230) * 0.5;
 
-    drawTrendChart(data, eased);
+    drawTrendChart(data, eased, pulse);
 
-    if (progress < 1) {
-      trendAnimationFrameId = requestAnimationFrame(frame);
-    }
+    // 그래프 극값 포인트는 계속 깜빡여야 하므로, 초기 등장 애니메이션이 끝난 뒤에도 프레임을 유지한다.
+    trendAnimationFrameId = requestAnimationFrame(frame);
   }
 
   trendAnimationFrameId = requestAnimationFrame(frame);
 }
 
-function drawTrendChart(data, progress) {
+function drawTrendChart(data, progress, pulse = 1) {
   const ctx = trendChart.getContext("2d");
   const width = parseFloat(trendChart.style.width) || 720;
   const height = parseFloat(trendChart.style.height) || 420;
@@ -1233,12 +1233,16 @@ function drawTrendChart(data, progress) {
 
   const validPoints = points.filter((point) => Number.isFinite(point.value) && Number.isFinite(point.y) && Number.isFinite(point.axisValue));
 
+  const extremeInfo = getTrendExtremeInfo(validPoints, metric);
+
   if (state.currentTrendRange === "1" || state.currentTrendRange === "7") {
     drawTrendBars(ctx, validPoints, padding, chartHeight, progress, slotWidth);
   }
 
   drawTrendLine(ctx, validPoints, progress);
   drawTrendDots(ctx, validPoints, progress);
+  drawTrendExtremePulse(ctx, extremeInfo, pulse, progress);
+  drawTrendValueLabels(ctx, validPoints, metric, extremeInfo, progress);
 }
 
 function drawTrendGrid(ctx, padding, chartWidth, chartHeight, axisConfig) {
@@ -1381,6 +1385,148 @@ function drawTrendDots(ctx, points, progress) {
   });
 
   ctx.restore();
+}
+
+
+function getTrendExtremeInfo(points, metric) {
+  if (!points.length) {
+    return {
+      maxPoint: null,
+      minPoint: null,
+      labelPoint: null,
+    };
+  }
+
+  const maxPoint = points.reduce((best, point) => {
+    if (!best) return point;
+    if (point.value > best.value) return point;
+    if (point.value === best.value && new Date(point.date) > new Date(best.date)) return point;
+    return best;
+  }, null);
+
+  const minPoint = points.reduce((best, point) => {
+    if (!best) return point;
+    if (point.value < best.value) return point;
+    if (point.value === best.value && new Date(point.date) > new Date(best.date)) return point;
+    return best;
+  }, null);
+
+  const labelPoint = metric && metric.key === "restingHeartRate" ? minPoint : maxPoint;
+
+  return {
+    maxPoint,
+    minPoint,
+    labelPoint,
+  };
+}
+
+function drawTrendExtremePulse(ctx, extremeInfo, pulse, progress) {
+  if (!extremeInfo || progress < 0.98) return;
+
+  const points = [extremeInfo.maxPoint, extremeInfo.minPoint]
+    .filter(Boolean)
+    .filter((point, index, arr) => arr.findIndex((item) => item.date === point.date && item.value === point.value) === index);
+
+  if (!points.length) return;
+
+  ctx.save();
+
+  points.forEach((point) => {
+    const radius = 9 + pulse * 9;
+    const alpha = 0.18 + pulse * 0.42;
+
+    ctx.beginPath();
+    ctx.fillStyle = `rgba(163, 230, 53, ${alpha})`;
+    ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.strokeStyle = `rgba(163, 230, 53, ${0.55 + pulse * 0.35})`;
+    ctx.lineWidth = 2;
+    ctx.arc(point.x, point.y, 6 + pulse * 2, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+
+  ctx.restore();
+}
+
+function drawTrendValueLabels(ctx, points, metric, extremeInfo, progress) {
+  if (!points.length || progress < 0.94) return;
+
+  const labelTargets = state.currentTrendRange === "1" || state.currentTrendRange === "7"
+    ? points
+    : extremeInfo && extremeInfo.labelPoint
+      ? [extremeInfo.labelPoint]
+      : [];
+
+  if (!labelTargets.length) return;
+
+  ctx.save();
+  ctx.font = "800 12px Pretendard, system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  labelTargets.forEach((point) => {
+    drawTrendSingleValueLabel(ctx, point, metric);
+  });
+
+  ctx.restore();
+}
+
+function drawTrendSingleValueLabel(ctx, point, metric) {
+  const label = formatTrendLabelValue(point.value, metric);
+  const paddingX = 7;
+  const boxHeight = 22;
+  const textWidth = ctx.measureText(label).width;
+  const boxWidth = textWidth + paddingX * 2;
+  const canvasWidth = parseFloat(trendChart.style.width) || 720;
+
+  let x = point.x;
+  let y = point.y - 24;
+
+  if (y < 18) {
+    y = point.y + 24;
+  }
+
+  x = clamp(x, boxWidth / 2 + 4, canvasWidth - boxWidth / 2 - 4);
+
+  ctx.save();
+  ctx.shadowColor = "rgba(163, 230, 53, 0.32)";
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = "rgba(11, 15, 20, 0.88)";
+  ctx.strokeStyle = "rgba(163, 230, 53, 0.52)";
+  ctx.lineWidth = 1;
+  drawRoundedRect(ctx, x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight, 11);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "#f8fafc";
+  ctx.fillText(label, x, y + 0.5);
+  ctx.restore();
+}
+
+function formatTrendLabelValue(value, metric) {
+  if (!Number.isFinite(value)) return "-";
+
+  if (metric && metric.key === "totalSleepMin") {
+    return `${Math.round(value)}분`;
+  }
+
+  if (metric && (metric.key === "deepSleepMin" || metric.key === "remSleepMin")) {
+    return `${Math.round(value)}분`;
+  }
+
+  if (metric && metric.key === "avgPace") {
+    return formatPaceSeconds(value);
+  }
+
+  const digits = metric && Number.isFinite(metric.digits) ? metric.digits : 1;
+  const formatted = value.toLocaleString("ko-KR", {
+    maximumFractionDigits: digits,
+  });
+
+  return metric && metric.unit ? `${formatted}${metric.unit}` : formatted;
 }
 
 function drawTrendEmpty(ctx, width, height) {
