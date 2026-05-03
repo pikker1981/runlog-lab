@@ -31,6 +31,8 @@ const state = {
   currentTrendType: "running",
   currentTrendMetric: "distanceKm",
   currentTrendRange: "1",
+  currentHistoryPage: 1,
+  historyDatesPerPage: 5,
 };
 
 const trendMetricConfig = {
@@ -396,6 +398,7 @@ async function handleRunningSubmit(event) {
     }
 
     saveLocalFallbackRecords();
+    state.currentHistoryPage = 1;
     cancelRunningEdit(false);
     runningForm.reset();
     setTodayDefaults();
@@ -568,6 +571,7 @@ async function handleSleepSubmit(event) {
     }
 
     saveLocalFallbackRecords();
+    state.currentHistoryPage = 1;
     cancelSleepEdit(false);
     sleepForm.reset();
     setTodayDefaults();
@@ -649,10 +653,12 @@ function calculateSleepScore(record) {
 
 function render() {
   sortRecords();
+  normalizeHistoryPage();
   renderViewTabs();
   renderRecordTabs();
   renderRunningTable();
   renderSleepTable();
+  renderHistoryPagination();
   renderDashboard();
   renderPeriodSummary();
   renderLatestSummary();
@@ -687,7 +693,8 @@ function renderRecordTabs() {
 function renderRunningTable() {
   if (!runningTableBody) return;
 
-  const records = state.records.running;
+  const allRecords = state.records.running;
+  const records = filterRecordsByCurrentHistoryPage(allRecords);
 
   runningTableBody.innerHTML = records
     .map((record) => {
@@ -712,14 +719,15 @@ function renderRunningTable() {
     .join("");
 
   if (emptyRunning) {
-    emptyRunning.classList.toggle("hide", records.length > 0);
+    emptyRunning.classList.toggle("hide", allRecords.length > 0);
   }
 }
 
 function renderSleepTable() {
   if (!sleepTableBody) return;
 
-  const records = state.records.sleep;
+  const allRecords = state.records.sleep;
+  const records = filterRecordsByCurrentHistoryPage(allRecords);
 
   sleepTableBody.innerHTML = records
     .map((record) => {
@@ -745,9 +753,164 @@ function renderSleepTable() {
     .join("");
 
   if (emptySleep) {
-    emptySleep.classList.toggle("hide", records.length > 0);
+    emptySleep.classList.toggle("hide", allRecords.length > 0);
   }
 }
+
+
+function getAllHistoryDates() {
+  const dates = [
+    ...state.records.running.map((record) => record.date),
+    ...state.records.sleep.map((record) => record.date),
+  ]
+    .filter(Boolean)
+    .map((date) => String(date).slice(0, 10));
+
+  return Array.from(new Set(dates)).sort((a, b) => new Date(b) - new Date(a));
+}
+
+function getHistoryPageInfo() {
+  const dates = getAllHistoryDates();
+  const perPage = state.historyDatesPerPage || 5;
+  const totalPages = Math.max(1, Math.ceil(dates.length / perPage));
+  const currentPage = clamp(state.currentHistoryPage || 1, 1, totalPages);
+  const startIndex = (currentPage - 1) * perPage;
+  const pageDates = dates.slice(startIndex, startIndex + perPage);
+
+  return {
+    dates,
+    pageDates,
+    currentPage,
+    totalPages,
+    startIndex,
+    endIndex: Math.min(startIndex + perPage, dates.length),
+    totalDates: dates.length,
+  };
+}
+
+function normalizeHistoryPage() {
+  const info = getHistoryPageInfo();
+  state.currentHistoryPage = info.currentPage;
+}
+
+function filterRecordsByCurrentHistoryPage(records) {
+  const info = getHistoryPageInfo();
+
+  if (!info.pageDates.length) {
+    return [];
+  }
+
+  const pageDateSet = new Set(info.pageDates);
+
+  return records.filter((record) => {
+    const dateKey = record.date ? String(record.date).slice(0, 10) : "";
+    return pageDateSet.has(dateKey);
+  });
+}
+
+function ensureHistoryPaginationElement() {
+  let pagination = $("#historyPagination");
+
+  if (pagination) {
+    return pagination;
+  }
+
+  const grid = $("#history .dashboard-grid");
+
+  if (!grid) {
+    return null;
+  }
+
+  pagination = document.createElement("div");
+  pagination.id = "historyPagination";
+  pagination.className = "history-pagination card card-full";
+  grid.appendChild(pagination);
+
+  return pagination;
+}
+
+function renderHistoryPagination() {
+  const pagination = ensureHistoryPaginationElement();
+
+  if (!pagination) {
+    return;
+  }
+
+  const info = getHistoryPageInfo();
+
+  if (info.totalDates <= state.historyDatesPerPage) {
+    pagination.classList.add("hide");
+    pagination.innerHTML = "";
+    return;
+  }
+
+  pagination.classList.remove("hide");
+
+  const firstDate = info.pageDates[0] ? formatDate(info.pageDates[0]) : "-";
+  const lastDate = info.pageDates[info.pageDates.length - 1]
+    ? formatDate(info.pageDates[info.pageDates.length - 1])
+    : "-";
+
+  pagination.innerHTML = `
+    <div class="history-pagination-inner">
+      <div class="history-pagination-copy">
+        <div class="history-pagination-title">기록 페이지</div>
+        <div class="history-pagination-desc">
+          날짜 ${info.startIndex + 1}–${info.endIndex} / 총 ${info.totalDates}일 · ${firstDate} ~ ${lastDate}
+        </div>
+      </div>
+
+      <div class="history-pagination-actions">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          data-history-page-action="prev"
+          ${info.currentPage <= 1 ? "disabled" : ""}
+        >
+          이전
+        </button>
+
+        <span class="history-page-indicator">
+          ${info.currentPage} / ${info.totalPages}
+        </span>
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          data-history-page-action="next"
+          ${info.currentPage >= info.totalPages ? "disabled" : ""}
+        >
+          다음
+        </button>
+      </div>
+    </div>
+  `;
+
+  pagination
+    .querySelectorAll("[data-history-page-action]")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        const action = button.dataset.historyPageAction;
+        const latestInfo = getHistoryPageInfo();
+
+        if (action === "prev") {
+          state.currentHistoryPage = Math.max(1, latestInfo.currentPage - 1);
+        }
+
+        if (action === "next") {
+          state.currentHistoryPage = Math.min(
+            latestInfo.totalPages,
+            latestInfo.currentPage + 1
+          );
+        }
+
+        renderRunningTable();
+        renderSleepTable();
+        renderHistoryPagination();
+      });
+    });
+}
+
 
 function renderDashboard() {
   renderRunningDashboard();
@@ -939,6 +1102,7 @@ async function handleReset() {
       running: [],
       sleep: [],
     };
+    state.currentHistoryPage = 1;
 
     saveLocalFallbackRecords();
     cancelRunningEdit(false);
