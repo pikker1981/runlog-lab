@@ -1453,11 +1453,7 @@ function drawTrendExtremePulse(ctx, extremeInfo, pulse, progress) {
 function drawTrendValueLabels(ctx, points, metric, extremeInfo, progress) {
   if (!points.length || progress < 0.94) return;
 
-  const labelTargets = state.currentTrendRange === "1" || state.currentTrendRange === "7"
-    ? points
-    : extremeInfo && extremeInfo.labelPoint
-      ? [extremeInfo.labelPoint]
-      : [];
+  const labelTargets = getTrendValueLabelTargets(points, extremeInfo);
 
   if (!labelTargets.length) return;
 
@@ -1471,6 +1467,22 @@ function drawTrendValueLabels(ctx, points, metric, extremeInfo, progress) {
   });
 
   ctx.restore();
+}
+
+function getTrendValueLabelTargets(points, extremeInfo) {
+  if (state.currentTrendRange === "1" || state.currentTrendRange === "7") {
+    return points;
+  }
+
+  if (!extremeInfo) return [];
+
+  return [extremeInfo.maxPoint, extremeInfo.minPoint]
+    .filter(Boolean)
+    .filter((point, index, arr) => {
+      return arr.findIndex((item) => {
+        return item.date === point.date && item.value === point.value;
+      }) === index;
+    });
 }
 
 function drawTrendSingleValueLabel(ctx, point, metric) {
