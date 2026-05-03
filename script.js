@@ -6,8 +6,8 @@ const STORAGE_KEY = "runlog_lab_records_v1";
 const TREND_AXIS_MIN = 50;
 const TREND_AXIS_MAX = 100;
 const TREND_AXIS_TICKS = [100, 90, 80, 70, 60, 50];
-const TREND_HIGHLIGHT_RGB = "249, 115, 22";
-const TREND_HIGHLIGHT_HEX = "#f97316";
+const TREND_HIGHLIGHT_RGB = "56, 189, 248";
+const TREND_HIGHLIGHT_HEX = "#38bdf8";
 
 
 const hasSupabaseConfig =
@@ -1323,7 +1323,7 @@ function drawTrendChart(data, progress, pulse = 1) {
 
 function drawTrendGrid(ctx, padding, chartWidth, chartHeight, axisConfig) {
   ctx.save();
-  ctx.strokeStyle = "rgba(229, 229, 229, 1)";
+  ctx.strokeStyle = "rgba(148, 163, 184, 0.14)";
   ctx.lineWidth = 1;
 
   axisConfig.ticks.forEach((value) => {
@@ -1335,7 +1335,7 @@ function drawTrendGrid(ctx, padding, chartWidth, chartHeight, axisConfig) {
     ctx.stroke();
   });
 
-  ctx.strokeStyle = "rgba(212, 212, 212, 1)";
+  ctx.strokeStyle = "rgba(148, 163, 184, 0.26)";
   ctx.beginPath();
   ctx.moveTo(padding.left, padding.top);
   ctx.lineTo(padding.left, padding.top + chartHeight);
@@ -1346,8 +1346,8 @@ function drawTrendGrid(ctx, padding, chartWidth, chartHeight, axisConfig) {
 
 function drawTrendYAxis(ctx, padding, chartHeight, axisConfig) {
   ctx.save();
-  ctx.fillStyle = "rgba(115, 115, 115, 1)";
-  ctx.font = "12px "Pretendard Variable", Pretendard, system-ui, sans-serif";
+  ctx.fillStyle = "rgba(203, 213, 225, 0.76)";
+  ctx.font = "12px Pretendard, system-ui, sans-serif";
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
 
@@ -1362,8 +1362,8 @@ function drawTrendYAxis(ctx, padding, chartHeight, axisConfig) {
 
 function drawTrendXAxis(ctx, points, padding, chartHeight) {
   ctx.save();
-  ctx.fillStyle = "rgba(115, 115, 115, 1)";
-  ctx.font = "12px "Pretendard Variable", Pretendard, system-ui, sans-serif";
+  ctx.fillStyle = "rgba(203, 213, 225, 0.76)";
+  ctx.font = "12px Pretendard, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
 
@@ -1394,8 +1394,8 @@ function drawTrendBars(ctx, points, padding, chartHeight, progress, slotWidth) {
     const y = baseline - animatedHeight;
 
     const gradient = ctx.createLinearGradient(0, y, 0, baseline);
-    gradient.addColorStop(0, "rgba(82, 82, 82, 0.46)");
-    gradient.addColorStop(1, "rgba(163, 230, 53, 0.00)");
+    gradient.addColorStop(0, "rgba(163, 230, 53, 0.46)");
+    gradient.addColorStop(1, "rgba(163, 230, 53, 0.08)");
 
     ctx.fillStyle = gradient;
     drawRoundedRect(ctx, x, y, barWidth, animatedHeight, 9);
@@ -1409,11 +1409,11 @@ function drawTrendLine(ctx, points, progress) {
   if (!points.length) return;
 
   ctx.save();
-  ctx.strokeStyle = "#262626";
+  ctx.strokeStyle = "#a3e635";
   ctx.lineWidth = 3;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.shadowColor = "rgba(0, 0, 0, 0)";
+  ctx.shadowColor = "rgba(163, 230, 53, 0.34)";
   ctx.shadowBlur = 10;
 
   const totalSegments = Math.max(points.length - 1, 1);
@@ -1452,8 +1452,8 @@ function drawTrendDots(ctx, points, progress) {
     if (dotProgress <= 0) return;
 
     ctx.beginPath();
-    ctx.fillStyle = "#ffffff";
-    ctx.strokeStyle = "#262626";
+    ctx.fillStyle = "#0b0f14";
+    ctx.strokeStyle = "#a3e635";
     ctx.lineWidth = 3;
     ctx.arc(point.x, point.y, 5 * dotProgress, 0, Math.PI * 2);
     ctx.fill();
@@ -1534,7 +1534,7 @@ function drawTrendValueLabels(ctx, points, metric, extremeInfo, progress) {
   if (!labelTargets.length) return;
 
   ctx.save();
-  ctx.font = "800 12px "Pretendard Variable", Pretendard, system-ui, sans-serif";
+  ctx.font = "800 12px Pretendard, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
@@ -1606,7 +1606,7 @@ function drawTrendHoverValueLabel(ctx, points, metric) {
   if (isAlreadyFixed) return;
 
   ctx.save();
-  ctx.font = "850 12px "Pretendard Variable", Pretendard, system-ui, sans-serif";
+  ctx.font = "850 12px Pretendard, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
@@ -1641,7 +1641,7 @@ function formatTrendLabelValue(value, metric) {
 function drawTrendEmpty(ctx, width, height) {
   ctx.save();
   ctx.fillStyle = "rgba(203, 213, 225, 0.8)";
-  ctx.font = "800 15px "Pretendard Variable", Pretendard, system-ui, sans-serif";
+  ctx.font = "800 15px Pretendard, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("표시할 기록이 없습니다.", width / 2, height / 2);
