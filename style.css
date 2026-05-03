@@ -495,10 +495,11 @@ a {
 }
 
 .metric-unit {
-  margin-left: 3px;
+  margin-left: 7px;
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 400;
+  letter-spacing: 0;
 }
 
 /* Sections */
