@@ -689,6 +689,38 @@ a {
   font-weight: 600;
 }
 
+/* ============================================================
+   대시보드 9장 카드 — 메트릭 컬러별 은은한 그라데이션 배경
+   (기록 요약 4장 mini-card는 제외)
+   ============================================================ */
+
+.dashboard-grid > .card {
+  --card-tint-rgb: 80, 80, 80;
+  background:
+    radial-gradient(
+      circle at 100% 0%,
+      rgba(var(--card-tint-rgb), 0.09),
+      rgba(var(--card-tint-rgb), 0.03) 35%,
+      transparent 62%
+    ),
+    linear-gradient(
+      155deg,
+      rgba(var(--card-tint-rgb), 0.025) 0%,
+      transparent 50%
+    ),
+    var(--surface-card);
+}
+
+.dashboard-grid > .card:has([data-total-run-distance]) { --card-tint-rgb: 196, 30, 58; }
+.dashboard-grid > .card:has(#avgRunPace)               { --card-tint-rgb: 70, 84, 117; }
+.dashboard-grid > .card:has(#avgRunHeartRate)          { --card-tint-rgb: 235, 21, 21; }
+.dashboard-grid > .card:has([data-avg-sleep-score])    { --card-tint-rgb: 236, 198, 196; }
+.dashboard-grid > .card:has(#avgBodyBatteryScore)      { --card-tint-rgb: 248, 111, 143; }
+.dashboard-grid > .card:has(#avgSleepTime)             { --card-tint-rgb: 196, 30, 58; }
+.dashboard-grid > .card:has(#avgDeepSleepRatio)        { --card-tint-rgb: 4, 120, 87; }
+.dashboard-grid > .card:has(#avgRemSleepRatio)         { --card-tint-rgb: 4, 120, 87; }
+/* #totalRunCalories는 기본 중성 그레이(--card-tint-rgb: 80,80,80)로 표시 */
+
 .sub-number {
   color: var(--text-muted);
   font-size: 13px;
