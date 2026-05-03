@@ -30,7 +30,7 @@ const state = {
   currentTab: "running",
   currentTrendType: "running",
   currentTrendMetric: "distanceKm",
-  currentTrendRange: "1",
+  currentTrendRange: "7",
   currentHistoryPage: 1,
   historyDatesPerPage: 5,
 };
@@ -1492,7 +1492,7 @@ function updateTrendSummary(data) {
 
   if (trendNote) {
     const rangeLabel = getTrendRangeLabel();
-    const chartType = state.currentTrendRange === "1" || state.currentTrendRange === "7"
+    const chartType = state.currentTrendRange === "7" || state.currentTrendRange === "14"
       ? "막대 + 선"
       : "선";
     const axisConfig = getTrendAxisConfig(metric);
@@ -1598,7 +1598,7 @@ function drawTrendChart(data, progress, pulse = 1) {
 
   const extremeInfo = getTrendExtremeInfo(validPoints, metric);
 
-  if (state.currentTrendRange === "1" || state.currentTrendRange === "7") {
+  if (state.currentTrendRange === "7" || state.currentTrendRange === "14") {
     drawTrendBars(ctx, validPoints, padding, chartHeight, progress, slotWidth);
   }
 
@@ -1657,7 +1657,7 @@ function drawTrendXAxis(ctx, points, padding, chartHeight) {
 
   const range = state.currentTrendRange;
   const maxLabelCount = window.innerWidth <= 900 ? 4 : 7;
-  const step = range === "7" || range === "1"
+  const step = range === "7" || range === "14"
     ? 1
     : Math.max(1, Math.ceil(points.length / maxLabelCount));
 
@@ -1834,7 +1834,7 @@ function drawTrendValueLabels(ctx, points, metric, extremeInfo, progress) {
 }
 
 function getTrendValueLabelTargets(points, extremeInfo) {
-  if (state.currentTrendRange === "1" || state.currentTrendRange === "7") {
+  if (state.currentTrendRange === "7" || state.currentTrendRange === "14") {
     return points;
   }
 
