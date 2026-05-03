@@ -647,16 +647,38 @@ a {
   word-break: break-word;
 }
 
-/* 대시보드 핵심 3종 (총 거리 · 평균 수면 점수 · 평균 수면 시간) 카디널 레드 */
+/* 대시보드 핵심 2종 (총 거리 · 평균 수면 시간) 카디널 레드 */
 .big-number:has([data-total-run-distance]),
-.big-number:has([data-avg-sleep-score]),
 .big-number:has(#avgSleepTime) {
   color: #c41e3a;
   font-weight: 600;
 }
 
-/* 대시보드 보조 3종 (평균 바디 배터리 · 깊은 수면 비율 · REM 수면 비율) 딥 에메랄드 */
-.big-number:has(#avgBodyBatteryScore),
+/* 평균 수면 점수 — 소프트 피치 */
+.big-number:has([data-avg-sleep-score]) {
+  color: #ecc6c4;
+  font-weight: 600;
+}
+
+/* 평균 심박 — 비비드 레드 */
+.big-number:has(#avgRunHeartRate) {
+  color: #eb1515;
+  font-weight: 600;
+}
+
+/* 평균 바디 배터리 — 소프트 로즈 */
+.big-number:has(#avgBodyBatteryScore) {
+  color: #f86f8f;
+  font-weight: 600;
+}
+
+/* 평균 페이스 — 슬레이트 네이비 */
+.big-number:has(#avgRunPace) {
+  color: #465475;
+  font-weight: 600;
+}
+
+/* 대시보드 보조 2종 (깊은 수면 비율 · REM 수면 비율) 딥 에메랄드 */
 .big-number:has(#avgDeepSleepRatio),
 .big-number:has(#avgRemSleepRatio) {
   color: #047857;
