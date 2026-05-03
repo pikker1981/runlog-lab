@@ -6,8 +6,11 @@ const STORAGE_KEY = "runlog_lab_records_v1";
 const TREND_AXIS_MIN = 50;
 const TREND_AXIS_MAX = 100;
 const TREND_AXIS_TICKS = [100, 90, 80, 70, 60, 50];
-const TREND_HIGHLIGHT_RGB = "249, 115, 22";
-const TREND_HIGHLIGHT_HEX = "#f97316";
+const TREND_HIGHLIGHT_RGB = "204, 255, 0";
+const TREND_HIGHLIGHT_HEX = "#ccff00";
+const TREND_GRID_RGBA = "rgba(255, 255, 255, 0.06)";
+const TREND_GRID_STRONG_RGBA = "rgba(255, 255, 255, 0.16)";
+const TREND_AXIS_TEXT_RGBA = "rgba(255, 255, 255, 0.52)";
 
 
 const hasSupabaseConfig =
@@ -1493,8 +1496,8 @@ function updateTrendSummary(data) {
   if (trendNote) {
     const rangeLabel = getTrendRangeLabel();
     const chartType = state.currentTrendRange === "7" || state.currentTrendRange === "14"
-      ? "막대 + 선"
-      : "선";
+      ? "네온 면적 + 라인"
+      : "네온 라인";
     const axisConfig = getTrendAxisConfig(metric);
 
     trendNote.textContent = `${rangeLabel} · ${metric.label} · 좌측 축 ${axisConfig.label} 고정 · 날짜 순서 기준 · ${chartType} 그래프로 표시 중`;
@@ -1518,23 +1521,20 @@ function resizeTrendCanvas() {
 
 function animateTrendChart(data) {
   const startedAt = performance.now();
-  const duration = 850;
+  const duration = 1100;
 
   function frame(now) {
     const progress = Math.min((now - startedAt) / duration, 1);
-    const eased = easeOutCubic(progress);
-    const pulse = 0.5 + Math.sin(now / 230) * 0.5;
 
-    drawTrendChart(data, eased, pulse);
-
-    // 그래프 극값 포인트는 계속 깜빡여야 하므로, 초기 등장 애니메이션이 끝난 뒤에도 프레임을 유지한다.
+    // 진입이 끝난 뒤에도 트래블링 스파크와 극값 글로우가 호흡하도록 프레임을 계속 돌린다.
+    drawTrendChart(data, progress, now);
     trendAnimationFrameId = requestAnimationFrame(frame);
   }
 
   trendAnimationFrameId = requestAnimationFrame(frame);
 }
 
-function drawTrendChart(data, progress, pulse = 1) {
+function drawTrendChart(data, progress, now) {
   const ctx = trendChart.getContext("2d");
   const width = parseFloat(trendChart.style.width) || 720;
   const height = parseFloat(trendChart.style.height) || 420;
@@ -1598,21 +1598,31 @@ function drawTrendChart(data, progress, pulse = 1) {
 
   const extremeInfo = getTrendExtremeInfo(validPoints, metric);
 
-  if (state.currentTrendRange === "7" || state.currentTrendRange === "14") {
-    drawTrendBars(ctx, validPoints, padding, chartHeight, progress, slotWidth);
+  // 진입 애니메이션 페이즈 분할
+  const lineT = easeInOutCubic(clamp(progress / 0.55, 0, 1));
+  const areaT = easeOutCubic(clamp((progress - 0.2) / 0.5, 0, 1));
+  const dotsT = clamp((progress - 0.45) / 0.5, 0, 1);
+  const labelGate = progress >= 0.86;
+  const breath = 0.5 + Math.sin(now / 820) * 0.5;
+
+  drawTrendArea(ctx, validPoints, areaT, padding, chartHeight);
+  drawTrendLine(ctx, validPoints, lineT);
+  drawTrendDots(ctx, validPoints, dotsT);
+  drawTrendExtremePulse(ctx, extremeInfo, breath, progress);
+  drawTrendTravelingSpark(ctx, validPoints, progress, now);
+
+  if (labelGate) {
+    drawTrendValueLabels(ctx, validPoints, metric, extremeInfo, progress);
   }
 
-  drawTrendLine(ctx, validPoints, progress);
-  drawTrendDots(ctx, validPoints, progress);
-  drawTrendExtremePulse(ctx, extremeInfo, pulse, progress);
-  drawTrendValueLabels(ctx, validPoints, metric, extremeInfo, progress);
   drawTrendHoverValueLabel(ctx, validPoints, metric);
 }
 
 function drawTrendGrid(ctx, padding, chartWidth, chartHeight, axisConfig) {
   ctx.save();
-  ctx.strokeStyle = "rgba(229, 229, 229, 1)";
+  ctx.strokeStyle = TREND_GRID_RGBA;
   ctx.lineWidth = 1;
+  ctx.setLineDash([3, 6]);
 
   axisConfig.ticks.forEach((value) => {
     const ratio = (value - axisConfig.min) / (axisConfig.max - axisConfig.min || 1);
@@ -1623,7 +1633,8 @@ function drawTrendGrid(ctx, padding, chartWidth, chartHeight, axisConfig) {
     ctx.stroke();
   });
 
-  ctx.strokeStyle = "rgba(212, 212, 212, 1)";
+  ctx.setLineDash([]);
+  ctx.strokeStyle = TREND_GRID_STRONG_RGBA;
   ctx.beginPath();
   ctx.moveTo(padding.left, padding.top);
   ctx.lineTo(padding.left, padding.top + chartHeight);
@@ -1634,7 +1645,7 @@ function drawTrendGrid(ctx, padding, chartWidth, chartHeight, axisConfig) {
 
 function drawTrendYAxis(ctx, padding, chartHeight, axisConfig) {
   ctx.save();
-  ctx.fillStyle = "rgba(115, 115, 115, 1)";
+  ctx.fillStyle = TREND_AXIS_TEXT_RGBA;
   ctx.font = "12px \"Pretendard Variable\", Pretendard, system-ui, sans-serif";
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
@@ -1650,7 +1661,7 @@ function drawTrendYAxis(ctx, padding, chartHeight, axisConfig) {
 
 function drawTrendXAxis(ctx, points, padding, chartHeight) {
   ctx.save();
-  ctx.fillStyle = "rgba(115, 115, 115, 1)";
+  ctx.fillStyle = TREND_AXIS_TEXT_RGBA;
   ctx.font = "12px \"Pretendard Variable\", Pretendard, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
@@ -1694,58 +1705,74 @@ function drawTrendBars(ctx, points, padding, chartHeight, progress, slotWidth) {
 }
 
 function drawTrendLine(ctx, points, progress) {
-  if (!points.length) return;
+  if (!points.length || points.length < 2 || progress <= 0) return;
+
+  // 전체 경로 길이 계산 → lineDashOffset 기반 스무스 리빌
+  let totalLen = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    const dx = points[i].x - points[i - 1].x;
+    const dy = points[i].y - points[i - 1].y;
+    totalLen += Math.sqrt(dx * dx + dy * dy);
+  }
+  if (totalLen <= 0) return;
 
   ctx.save();
-  ctx.strokeStyle = "#262626";
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = TREND_HIGHLIGHT_HEX;
+  ctx.lineWidth = 2.6;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.shadowColor = "rgba(0, 0, 0, 0)";
-  ctx.shadowBlur = 10;
+  ctx.shadowColor = `rgba(${TREND_HIGHLIGHT_RGB}, 0.55)`;
+  ctx.shadowBlur = 18;
 
-  const totalSegments = Math.max(points.length - 1, 1);
-  const animatedLength = totalSegments * progress;
+  ctx.setLineDash([totalLen, totalLen]);
+  ctx.lineDashOffset = totalLen * (1 - progress);
 
   ctx.beginPath();
   ctx.moveTo(points[0].x, points[0].y);
-
   for (let i = 1; i < points.length; i += 1) {
-    if (i <= Math.floor(animatedLength)) {
-      ctx.lineTo(points[i].x, points[i].y);
-    } else if (i === Math.floor(animatedLength) + 1) {
-      const localProgress = animatedLength - Math.floor(animatedLength);
-      const prev = points[i - 1];
-      const next = points[i];
-      const x = prev.x + (next.x - prev.x) * localProgress;
-      const y = prev.y + (next.y - prev.y) * localProgress;
-      ctx.lineTo(x, y);
-      break;
-    }
+    ctx.lineTo(points[i].x, points[i].y);
   }
-
-  if (points.length === 1) {
-    ctx.lineTo(points[0].x, points[0].y);
-  }
-
   ctx.stroke();
+
+  ctx.setLineDash([]);
   ctx.restore();
 }
 
 function drawTrendDots(ctx, points, progress) {
+  if (!points.length || progress <= 0) return;
+
   ctx.save();
 
   points.forEach((point, index) => {
-    const dotProgress = Math.max(0, Math.min(1, progress * points.length - index));
-    if (dotProgress <= 0) return;
+    // 각 포인트가 순차적으로 스프링 바운스(overshoot) 하며 팝인
+    const stagger = points.length > 1 ? index / (points.length - 1) : 0;
+    const startAt = stagger * 0.75;
+    const localT = clamp((progress - startAt) / 0.25, 0, 1);
+    if (localT <= 0) return;
 
+    const eased = easeOutBack(localT);
+    const r = Math.max(0, 5 * eased);
+
+    // 외곽 형광 헤일로
+    ctx.beginPath();
+    ctx.fillStyle = `rgba(${TREND_HIGHLIGHT_RGB}, ${0.22 * localT})`;
+    ctx.arc(point.x, point.y, r + 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 네온 링
+    ctx.shadowColor = `rgba(${TREND_HIGHLIGHT_RGB}, 0.9)`;
+    ctx.shadowBlur = 14;
+    ctx.beginPath();
+    ctx.fillStyle = TREND_HIGHLIGHT_HEX;
+    ctx.arc(point.x, point.y, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 흰 코어 LED
+    ctx.shadowBlur = 0;
     ctx.beginPath();
     ctx.fillStyle = "#ffffff";
-    ctx.strokeStyle = "#262626";
-    ctx.lineWidth = 3;
-    ctx.arc(point.x, point.y, 5 * dotProgress, 0, Math.PI * 2);
+    ctx.arc(point.x, point.y, Math.max(1.2, r * 0.42), 0, Math.PI * 2);
     ctx.fill();
-    ctx.stroke();
   });
 
   ctx.restore();
@@ -1784,8 +1811,8 @@ function getTrendExtremeInfo(points, metric) {
   };
 }
 
-function drawTrendExtremePulse(ctx, extremeInfo, pulse, progress) {
-  if (!extremeInfo || progress < 0.98) return;
+function drawTrendExtremePulse(ctx, extremeInfo, breath, progress) {
+  if (!extremeInfo || progress < 0.85) return;
 
   const points = [extremeInfo.maxPoint, extremeInfo.minPoint]
     .filter(Boolean)
@@ -1796,26 +1823,21 @@ function drawTrendExtremePulse(ctx, extremeInfo, pulse, progress) {
   ctx.save();
 
   points.forEach((point) => {
-    const radius = 9 + pulse * 9;
-    const alpha = 0.18 + pulse * 0.42;
+    // 숨쉬는 듯한 스테디 글로우 — 격한 펄스 대신 은은한 호흡
+    const radius = 13 + breath * 5;
+    const alpha = 0.14 + breath * 0.18;
 
     ctx.beginPath();
     ctx.fillStyle = `rgba(${TREND_HIGHLIGHT_RGB}, ${alpha})`;
     ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
     ctx.fill();
-
-    ctx.beginPath();
-    ctx.strokeStyle = `rgba(${TREND_HIGHLIGHT_RGB}, ${0.55 + pulse * 0.35})`;
-    ctx.lineWidth = 2;
-    ctx.arc(point.x, point.y, 6 + pulse * 2, 0, Math.PI * 2);
-    ctx.stroke();
   });
 
   ctx.restore();
 }
 
 function drawTrendValueLabels(ctx, points, metric, extremeInfo, progress) {
-  if (!points.length || progress < 0.94) return;
+  if (!points.length || progress < 0.86) return;
 
   const labelTargets = getTrendValueLabelTargets(points, extremeInfo);
 
@@ -1851,33 +1873,46 @@ function getTrendValueLabelTargets(points, extremeInfo) {
 
 function drawTrendSingleValueLabel(ctx, point, metric, isHover = false) {
   const label = formatTrendLabelValue(point.value, metric);
-  const paddingX = 7;
+  const paddingX = 8;
   const boxHeight = 22;
   const textWidth = ctx.measureText(label).width;
   const boxWidth = textWidth + paddingX * 2;
   const canvasWidth = parseFloat(trendChart.style.width) || 720;
 
   let x = point.x;
-  let y = point.y - (isHover ? 34 : 24);
+  let y = point.y - (isHover ? 32 : 24);
 
   if (y < 18) {
-    y = point.y + 24;
+    y = point.y + 26;
   }
 
   x = clamp(x, boxWidth / 2 + 4, canvasWidth - boxWidth / 2 - 4);
 
   ctx.save();
-  ctx.shadowColor = `rgba(${TREND_HIGHLIGHT_RGB}, 0.36)`;
-  ctx.shadowBlur = 10;
-  ctx.fillStyle = isHover ? "rgba(8, 21, 30, 0.94)" : "rgba(11, 15, 20, 0.88)";
-  ctx.strokeStyle = `rgba(${TREND_HIGHLIGHT_RGB}, 0.72)`;
-  ctx.lineWidth = 1;
-  drawRoundedRect(ctx, x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight, 11);
-  ctx.fill();
-  ctx.stroke();
 
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = TREND_HIGHLIGHT_HEX;
+  if (isHover) {
+    // 호버: 블랙 필 + 네온 보더 + 네온 텍스트 (강조 대비)
+    ctx.shadowColor = `rgba(${TREND_HIGHLIGHT_RGB}, 0.6)`;
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = "rgba(10, 10, 10, 0.96)";
+    ctx.strokeStyle = TREND_HIGHLIGHT_HEX;
+    ctx.lineWidth = 1.2;
+    drawRoundedRect(ctx, x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight, 11);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = TREND_HIGHLIGHT_HEX;
+  } else {
+    // 고정 레이블: 네온 필 + 블랙 텍스트 (시그니처 배지 느낌)
+    ctx.shadowColor = `rgba(${TREND_HIGHLIGHT_RGB}, 0.55)`;
+    ctx.shadowBlur = 16;
+    ctx.fillStyle = TREND_HIGHLIGHT_HEX;
+    drawRoundedRect(ctx, x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight, 11);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#0a0a0a";
+  }
+
   ctx.fillText(label, x, y + 0.5);
   ctx.restore();
 }
@@ -1928,11 +1963,87 @@ function formatTrendLabelValue(value, metric) {
 
 function drawTrendEmpty(ctx, width, height) {
   ctx.save();
-  ctx.fillStyle = "rgba(203, 213, 225, 0.8)";
-  ctx.font = "800 15px \"Pretendard Variable\", Pretendard, system-ui, sans-serif";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.38)";
+  ctx.font = "600 15px \"Pretendard Variable\", Pretendard, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("표시할 기록이 없습니다.", width / 2, height / 2);
+  ctx.restore();
+}
+
+function drawTrendArea(ctx, points, progress, padding, chartHeight) {
+  if (points.length < 2 || progress <= 0) return;
+
+  const baseline = padding.top + chartHeight;
+  const topY = Math.min(...points.map((p) => p.y));
+
+  const gradient = ctx.createLinearGradient(0, topY, 0, baseline);
+  gradient.addColorStop(0, `rgba(${TREND_HIGHLIGHT_RGB}, ${0.34 * progress})`);
+  gradient.addColorStop(1, `rgba(${TREND_HIGHLIGHT_RGB}, 0)`);
+
+  ctx.save();
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, baseline);
+  points.forEach((p) => ctx.lineTo(p.x, p.y));
+  ctx.lineTo(points[points.length - 1].x, baseline);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawTrendTravelingSpark(ctx, points, progress, now) {
+  // 진입 애니메이션이 끝난 뒤, 라인을 따라 무한히 흐르는 형광 스파크
+  if (progress < 1 || points.length < 2) return;
+
+  const segLens = [];
+  let totalLen = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    const dx = points[i].x - points[i - 1].x;
+    const dy = points[i].y - points[i - 1].y;
+    const l = Math.sqrt(dx * dx + dy * dy);
+    segLens.push(l);
+    totalLen += l;
+  }
+  if (totalLen <= 0) return;
+
+  const cycle = 2600;
+  const t = (now % cycle) / cycle;
+  const target = t * totalLen;
+
+  let acc = 0;
+  let sx = points[0].x;
+  let sy = points[0].y;
+  for (let i = 0; i < segLens.length; i += 1) {
+    if (acc + segLens[i] >= target) {
+      const localT = segLens[i] > 0 ? (target - acc) / segLens[i] : 0;
+      sx = points[i].x + (points[i + 1].x - points[i].x) * localT;
+      sy = points[i].y + (points[i + 1].y - points[i].y) * localT;
+      break;
+    }
+    acc += segLens[i];
+  }
+
+  // 루프 시작/끝에서 부드럽게 페이드
+  const edge = Math.min(t, 1 - t);
+  const edgeFade = edge < 0.06 ? edge / 0.06 : 1;
+
+  ctx.save();
+
+  // 외곽 네온 오라
+  ctx.fillStyle = `rgba(${TREND_HIGHLIGHT_RGB}, ${0.28 * edgeFade})`;
+  ctx.beginPath();
+  ctx.arc(sx, sy, 12, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 중심 흰 코어 + 강한 글로우
+  ctx.shadowColor = `rgba(${TREND_HIGHLIGHT_RGB}, 0.95)`;
+  ctx.shadowBlur = 22;
+  ctx.fillStyle = `rgba(255, 255, 255, ${0.95 * edgeFade})`;
+  ctx.beginPath();
+  ctx.arc(sx, sy, 4.5, 0, Math.PI * 2);
+  ctx.fill();
+
   ctx.restore();
 }
 
@@ -2178,6 +2289,18 @@ function formatShortDate(dateString) {
 
 function easeOutCubic(value) {
   return 1 - Math.pow(1 - value, 3);
+}
+
+function easeInOutCubic(value) {
+  return value < 0.5
+    ? 4 * value * value * value
+    : 1 - Math.pow(-2 * value + 2, 3) / 2;
+}
+
+function easeOutBack(value) {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(value - 1, 3) + c1 * Math.pow(value - 1, 2);
 }
 
 function debounce(callback, delay) {
