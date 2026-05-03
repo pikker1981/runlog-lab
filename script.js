@@ -1347,7 +1347,7 @@ function drawTrendGrid(ctx, padding, chartWidth, chartHeight, axisConfig) {
 function drawTrendYAxis(ctx, padding, chartHeight, axisConfig) {
   ctx.save();
   ctx.fillStyle = "rgba(115, 115, 115, 1)";
-  ctx.font = "12px Pretendard, system-ui, sans-serif";
+  ctx.font = "12px "Pretendard Variable", Pretendard, system-ui, sans-serif";
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
 
@@ -1363,7 +1363,7 @@ function drawTrendYAxis(ctx, padding, chartHeight, axisConfig) {
 function drawTrendXAxis(ctx, points, padding, chartHeight) {
   ctx.save();
   ctx.fillStyle = "rgba(115, 115, 115, 1)";
-  ctx.font = "12px Pretendard, system-ui, sans-serif";
+  ctx.font = "12px "Pretendard Variable", Pretendard, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
 
@@ -1534,7 +1534,7 @@ function drawTrendValueLabels(ctx, points, metric, extremeInfo, progress) {
   if (!labelTargets.length) return;
 
   ctx.save();
-  ctx.font = "800 12px Pretendard, system-ui, sans-serif";
+  ctx.font = "800 12px "Pretendard Variable", Pretendard, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
@@ -1606,7 +1606,7 @@ function drawTrendHoverValueLabel(ctx, points, metric) {
   if (isAlreadyFixed) return;
 
   ctx.save();
-  ctx.font = "850 12px Pretendard, system-ui, sans-serif";
+  ctx.font = "850 12px "Pretendard Variable", Pretendard, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
@@ -1641,7 +1641,7 @@ function formatTrendLabelValue(value, metric) {
 function drawTrendEmpty(ctx, width, height) {
   ctx.save();
   ctx.fillStyle = "rgba(203, 213, 225, 0.8)";
-  ctx.font = "800 15px Pretendard, system-ui, sans-serif";
+  ctx.font = "800 15px "Pretendard Variable", Pretendard, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("표시할 기록이 없습니다.", width / 2, height / 2);
