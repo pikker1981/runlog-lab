@@ -8,6 +8,10 @@ const TREND_AXIS_MAX = 100;
 const TREND_AXIS_TICKS = [100, 90, 80, 70, 60, 50];
 const TREND_HIGHLIGHT_RGB = "204, 255, 0";
 const TREND_HIGHLIGHT_HEX = "#ccff00";
+const TREND_MAX_HEX = "#00ffc2";
+const TREND_MAX_RGB = "0, 255, 194";
+const TREND_MIN_HEX = "#ff3d7f";
+const TREND_MIN_RGB = "255, 61, 127";
 const TREND_GRID_RGBA = "rgba(255, 255, 255, 0.06)";
 const TREND_GRID_STRONG_RGBA = "rgba(255, 255, 255, 0.16)";
 const TREND_AXIS_TEXT_RGBA = "rgba(255, 255, 255, 0.52)";
@@ -1607,7 +1611,7 @@ function drawTrendChart(data, progress, now) {
 
   drawTrendArea(ctx, validPoints, areaT, padding, chartHeight);
   drawTrendLine(ctx, validPoints, lineT);
-  drawTrendDots(ctx, validPoints, dotsT);
+  drawTrendDots(ctx, validPoints, dotsT, extremeInfo);
   drawTrendExtremePulse(ctx, extremeInfo, breath, progress);
   drawTrendTravelingSpark(ctx, validPoints, progress, now);
 
@@ -1615,7 +1619,21 @@ function drawTrendChart(data, progress, now) {
     drawTrendValueLabels(ctx, validPoints, metric, extremeInfo, progress);
   }
 
-  drawTrendHoverValueLabel(ctx, validPoints, metric);
+  drawTrendHoverValueLabel(ctx, validPoints, metric, extremeInfo);
+}
+
+function getTrendPointVariant(point, extremeInfo) {
+  if (!point || !extremeInfo) return "default";
+  const same = (a, b) => !!a && !!b && a.date === b.date && a.value === b.value;
+  if (same(point, extremeInfo.maxPoint)) return "max";
+  if (same(point, extremeInfo.minPoint)) return "min";
+  return "default";
+}
+
+function getTrendAccentPalette(variant) {
+  if (variant === "max") return { hex: TREND_MAX_HEX, rgb: TREND_MAX_RGB };
+  if (variant === "min") return { hex: TREND_MIN_HEX, rgb: TREND_MIN_RGB };
+  return { hex: TREND_HIGHLIGHT_HEX, rgb: TREND_HIGHLIGHT_RGB };
 }
 
 function drawTrendGrid(ctx, padding, chartWidth, chartHeight, axisConfig) {
@@ -1738,7 +1756,7 @@ function drawTrendLine(ctx, points, progress) {
   ctx.restore();
 }
 
-function drawTrendDots(ctx, points, progress) {
+function drawTrendDots(ctx, points, progress, extremeInfo) {
   if (!points.length || progress <= 0) return;
 
   ctx.save();
@@ -1751,19 +1769,23 @@ function drawTrendDots(ctx, points, progress) {
     if (localT <= 0) return;
 
     const eased = easeOutBack(localT);
-    const r = Math.max(0, 5 * eased);
+    const variant = getTrendPointVariant(point, extremeInfo);
+    const palette = getTrendAccentPalette(variant);
+    const isExtreme = variant !== "default";
+    const baseR = Math.max(0, 5 * eased);
+    const r = isExtreme ? baseR * 1.18 : baseR;
 
     // 외곽 형광 헤일로
     ctx.beginPath();
-    ctx.fillStyle = `rgba(${TREND_HIGHLIGHT_RGB}, ${0.22 * localT})`;
-    ctx.arc(point.x, point.y, r + 6, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${palette.rgb}, ${(isExtreme ? 0.3 : 0.22) * localT})`;
+    ctx.arc(point.x, point.y, r + (isExtreme ? 8 : 6), 0, Math.PI * 2);
     ctx.fill();
 
     // 네온 링
-    ctx.shadowColor = `rgba(${TREND_HIGHLIGHT_RGB}, 0.9)`;
-    ctx.shadowBlur = 14;
+    ctx.shadowColor = `rgba(${palette.rgb}, 0.9)`;
+    ctx.shadowBlur = isExtreme ? 20 : 14;
     ctx.beginPath();
-    ctx.fillStyle = TREND_HIGHLIGHT_HEX;
+    ctx.fillStyle = palette.hex;
     ctx.arc(point.x, point.y, r, 0, Math.PI * 2);
     ctx.fill();
 
@@ -1814,21 +1836,32 @@ function getTrendExtremeInfo(points, metric) {
 function drawTrendExtremePulse(ctx, extremeInfo, breath, progress) {
   if (!extremeInfo || progress < 0.85) return;
 
-  const points = [extremeInfo.maxPoint, extremeInfo.minPoint]
-    .filter(Boolean)
-    .filter((point, index, arr) => arr.findIndex((item) => item.date === point.date && item.value === point.value) === index);
+  const entries = [
+    { point: extremeInfo.maxPoint, variant: "max" },
+    { point: extremeInfo.minPoint, variant: "min" },
+  ].filter((e) => e.point);
 
-  if (!points.length) return;
+  if (!entries.length) return;
+
+  // max === min 인 단일 포인트 시나리오 중복 제거
+  const seen = new Set();
+  const unique = entries.filter((e) => {
+    const k = `${e.point.date}|${e.point.value}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 
   ctx.save();
 
-  points.forEach((point) => {
-    // 숨쉬는 듯한 스테디 글로우 — 격한 펄스 대신 은은한 호흡
+  unique.forEach(({ point, variant }) => {
+    // 숨쉬는 듯한 스테디 글로우 — max/min 에 따라 다른 형광 색 적용
+    const palette = getTrendAccentPalette(variant);
     const radius = 13 + breath * 5;
-    const alpha = 0.14 + breath * 0.18;
+    const alpha = 0.16 + breath * 0.2;
 
     ctx.beginPath();
-    ctx.fillStyle = `rgba(${TREND_HIGHLIGHT_RGB}, ${alpha})`;
+    ctx.fillStyle = `rgba(${palette.rgb}, ${alpha})`;
     ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
     ctx.fill();
   });
@@ -1849,7 +1882,8 @@ function drawTrendValueLabels(ctx, points, metric, extremeInfo, progress) {
   ctx.textBaseline = "middle";
 
   labelTargets.forEach((point) => {
-    drawTrendSingleValueLabel(ctx, point, metric);
+    const variant = getTrendPointVariant(point, extremeInfo);
+    drawTrendSingleValueLabel(ctx, point, metric, false, variant);
   });
 
   ctx.restore();
@@ -1871,7 +1905,8 @@ function getTrendValueLabelTargets(points, extremeInfo) {
     });
 }
 
-function drawTrendSingleValueLabel(ctx, point, metric, isHover = false) {
+function drawTrendSingleValueLabel(ctx, point, metric, isHover = false, variant = "default") {
+  const palette = getTrendAccentPalette(variant);
   const label = formatTrendLabelValue(point.value, metric);
   const paddingX = 8;
   const boxHeight = 22;
@@ -1891,22 +1926,22 @@ function drawTrendSingleValueLabel(ctx, point, metric, isHover = false) {
   ctx.save();
 
   if (isHover) {
-    // 호버: 블랙 필 + 네온 보더 + 네온 텍스트 (강조 대비)
-    ctx.shadowColor = `rgba(${TREND_HIGHLIGHT_RGB}, 0.6)`;
+    // 호버: 블랙 필 + 변신별 네온 보더 + 네온 텍스트 (강조 대비)
+    ctx.shadowColor = `rgba(${palette.rgb}, 0.6)`;
     ctx.shadowBlur = 14;
     ctx.fillStyle = "rgba(10, 10, 10, 0.96)";
-    ctx.strokeStyle = TREND_HIGHLIGHT_HEX;
+    ctx.strokeStyle = palette.hex;
     ctx.lineWidth = 1.2;
     drawRoundedRect(ctx, x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight, 11);
     ctx.fill();
     ctx.stroke();
     ctx.shadowBlur = 0;
-    ctx.fillStyle = TREND_HIGHLIGHT_HEX;
+    ctx.fillStyle = palette.hex;
   } else {
     // 고정 레이블: 네온 필 + 블랙 텍스트 (시그니처 배지 느낌)
-    ctx.shadowColor = `rgba(${TREND_HIGHLIGHT_RGB}, 0.55)`;
+    ctx.shadowColor = `rgba(${palette.rgb}, 0.55)`;
     ctx.shadowBlur = 16;
-    ctx.fillStyle = TREND_HIGHLIGHT_HEX;
+    ctx.fillStyle = palette.hex;
     drawRoundedRect(ctx, x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight, 11);
     ctx.fill();
     ctx.shadowBlur = 0;
@@ -1917,13 +1952,14 @@ function drawTrendSingleValueLabel(ctx, point, metric, isHover = false) {
   ctx.restore();
 }
 
-function drawTrendHoverValueLabel(ctx, points, metric) {
+function drawTrendHoverValueLabel(ctx, points, metric, extremeInfo) {
   if (!trendHoverPointKey || !points.length) return;
 
   const target = points.find((point) => getTrendPointKey(point) === trendHoverPointKey);
   if (!target) return;
 
-  const fixedTargets = getTrendValueLabelTargets(points, getTrendExtremeInfo(points, metric));
+  const info = extremeInfo || getTrendExtremeInfo(points, metric);
+  const fixedTargets = getTrendValueLabelTargets(points, info);
   const isAlreadyFixed = fixedTargets.some((point) => getTrendPointKey(point) === trendHoverPointKey);
 
   if (isAlreadyFixed) return;
@@ -1933,7 +1969,8 @@ function drawTrendHoverValueLabel(ctx, points, metric) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  drawTrendSingleValueLabel(ctx, target, metric, true);
+  const variant = getTrendPointVariant(target, info);
+  drawTrendSingleValueLabel(ctx, target, metric, true, variant);
 
   ctx.restore();
 }
