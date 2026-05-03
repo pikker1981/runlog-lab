@@ -655,6 +655,14 @@ a {
   font-weight: 600;
 }
 
+/* 대시보드 보조 3종 (평균 바디 배터리 · 깊은 수면 비율 · REM 수면 비율) 딥 에메랄드 */
+.big-number:has(#avgBodyBatteryScore),
+.big-number:has(#avgDeepSleepRatio),
+.big-number:has(#avgRemSleepRatio) {
+  color: #047857;
+  font-weight: 600;
+}
+
 .sub-number {
   color: var(--text-muted);
   font-size: 13px;
