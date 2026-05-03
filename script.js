@@ -651,6 +651,73 @@ function calculateSleepScore(record) {
   return clamp(Math.round(score), 0, 100);
 }
 
+
+function calculateSleepScoreBreakdown(record) {
+  const totalHours = record.totalSleepMin / 60;
+
+  let totalSleepPenalty = 0;
+  let deepSleepPenalty = 0;
+  let remSleepPenalty = 0;
+  let restingHeartRatePenalty = 0;
+
+  if (totalHours >= 7 && totalHours <= 9) totalSleepPenalty = 0;
+  else if (totalHours >= 6 && totalHours < 7) totalSleepPenalty = 10;
+  else if (totalHours > 9 && totalHours <= 10) totalSleepPenalty = 8;
+  else if (totalHours >= 5 && totalHours < 6) totalSleepPenalty = 22;
+  else totalSleepPenalty = 35;
+
+  if (record.deepSleepRatio >= 13 && record.deepSleepRatio <= 23) deepSleepPenalty = 0;
+  else if (record.deepSleepRatio >= 10 && record.deepSleepRatio < 13) deepSleepPenalty = 8;
+  else if (record.deepSleepRatio > 23 && record.deepSleepRatio <= 28) deepSleepPenalty = 6;
+  else deepSleepPenalty = 16;
+
+  if (record.remSleepRatio >= 20 && record.remSleepRatio <= 25) remSleepPenalty = 0;
+  else if (record.remSleepRatio >= 16 && record.remSleepRatio < 20) remSleepPenalty = 8;
+  else if (record.remSleepRatio > 25 && record.remSleepRatio <= 30) remSleepPenalty = 6;
+  else remSleepPenalty = 16;
+
+  if (record.restingHeartRate > 0) {
+    if (record.restingHeartRate <= 60) restingHeartRatePenalty = 0;
+    else if (record.restingHeartRate <= 70) restingHeartRatePenalty = 6;
+    else if (record.restingHeartRate <= 80) restingHeartRatePenalty = 12;
+    else restingHeartRatePenalty = 20;
+  }
+
+  const totalPenalty =
+    totalSleepPenalty +
+    deepSleepPenalty +
+    remSleepPenalty +
+    restingHeartRatePenalty;
+
+  return {
+    totalSleepPenalty,
+    deepSleepPenalty,
+    remSleepPenalty,
+    restingHeartRatePenalty,
+    totalPenalty,
+  };
+}
+
+function formatSleepPenaltyBadge(value) {
+  const penalty = toNumber(value);
+
+  if (penalty <= 0) {
+    return '<span class="score-reason score-reason-good">+0</span>';
+  }
+
+  return `<span class="score-reason">+${formatNumber(penalty, 0)}</span>`;
+}
+
+function formatSleepValueWithReason(value, reason, unit = "") {
+  return `
+    <span class="sleep-value-with-reason">
+      <span>${value}${unit}</span>
+      ${formatSleepPenaltyBadge(reason)}
+    </span>
+  `;
+}
+
+
 function render() {
   sortRecords();
   normalizeHistoryPage();
@@ -731,16 +798,23 @@ function renderSleepTable() {
 
   sleepTableBody.innerHTML = records
     .map((record) => {
+      const scoreReason = calculateSleepScoreBreakdown(record);
+
       return `
         <tr>
           <td><strong>${formatDate(record.date)}</strong></td>
-          <td>${formatDuration(record.totalSleepMin)}</td>
+          <td>${formatSleepValueWithReason(formatDuration(record.totalSleepMin), scoreReason.totalSleepPenalty)}</td>
           <td>${formatNullableScore(record.sleepScore)}</td>
           <td>${formatNullableScore(record.bodyBatteryScore)}</td>
-          <td>${formatNumber(record.deepSleepRatio, 1)}%</td>
-          <td>${formatNumber(record.remSleepRatio, 1)}%</td>
-          <td>${formatNumber(record.restingHeartRate, 0)} bpm</td>
-          <td><strong>${record.score}</strong></td>
+          <td>${formatSleepValueWithReason(`${formatNumber(record.deepSleepRatio, 1)}%`, scoreReason.deepSleepPenalty)}</td>
+          <td>${formatSleepValueWithReason(`${formatNumber(record.remSleepRatio, 1)}%`, scoreReason.remSleepPenalty)}</td>
+          <td>${formatSleepValueWithReason(`${formatNumber(record.restingHeartRate, 0)} bpm`, scoreReason.restingHeartRatePenalty)}</td>
+          <td>
+            <span class="app-score-with-reason">
+              <strong>${record.score}</strong>
+              ${formatSleepPenaltyBadge(scoreReason.totalPenalty)}
+            </span>
+          </td>
           <td>
             <div class="table-actions">
               <button class="btn btn-secondary" onclick="startSleepEdit('${record.id}')">수정</button>

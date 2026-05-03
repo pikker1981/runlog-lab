@@ -1494,3 +1494,46 @@ label {
     width: 100%;
   }
 }
+
+
+
+/* Sleep score reason badges */
+
+.sleep-value-with-reason,
+.app-score-with-reason {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.score-reason {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-1px);
+  color: #dc2626;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.score-reason-good {
+  color: #a3a3a3;
+}
+
+@media (max-width: 900px) {
+  .sleep-value-with-reason,
+  .app-score-with-reason {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .score-reason {
+    font-size: 11px;
+  }
+}
