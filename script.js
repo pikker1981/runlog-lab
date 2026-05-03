@@ -1686,13 +1686,20 @@ function drawTrendXAxis(ctx, points, padding, chartHeight) {
 
   const range = state.currentTrendRange;
   const maxLabelCount = window.innerWidth <= 900 ? 4 : 7;
-  const step = range === "7" || range === "14"
+  // 7일은 그대로 모두 표기. 14일·이상은 폭에 맞춰 자동 솎아냄.
+  const step = range === "7"
     ? 1
     : Math.max(1, Math.ceil(points.length / maxLabelCount));
 
+  const lastIndex = points.length - 1;
+  const lastStepIndex = Math.floor(lastIndex / step) * step;
+  // 마지막 라벨이 직전 step 라벨과 step/2 이상 떨어졌을 때만 별도 표기 (인접 충돌 방지)
+  const showLast = (lastIndex - lastStepIndex) >= Math.ceil(step / 2);
+
   points.forEach((point, index) => {
-    const isLast = index === points.length - 1;
-    if (index % step !== 0 && !isLast) return;
+    const onStep = index % step === 0;
+    const isLast = index === lastIndex;
+    if (!onStep && !(isLast && showLast)) return;
     ctx.fillText(formatShortDate(point.date), point.x, padding.top + chartHeight + 16);
   });
 
