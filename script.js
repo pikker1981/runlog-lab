@@ -782,6 +782,7 @@ function render() {
   renderLatestSummary();
   renderTrendMetricOptions();
   renderTrendChart();
+  maybeAnimateDashboardEntrance();
 }
 
 function renderViewTabs() {
@@ -2556,6 +2557,100 @@ function getScoreLabel(score) {
 function setTextAll(elements, value) {
   elements.forEach((element) => {
     element.textContent = value;
+  });
+}
+
+// 첫 대시보드 렌더링 시 1회성 카운트업 애니메이션
+// 텍스트 안의 첫 숫자 토큰만 샐을하고 접미사(km/점/% 등)는 그대로 유지
+let dashboardEntrancePlayed = false;
+
+function animateNumberCountUp(element, targetText, duration) {
+  const ms = Number.isFinite(duration) ? duration : 1100;
+  const text = String(targetText);
+  // "앞쪽 곡용 + 숫자 + 뒤쪽 단위" 패턴만 허용 — 이외에는 동작·포맷을 손상시키지 않도록 원본 텍스트 그대로 세팅
+  const match = text.match(/^(\s*)(-?\d{1,3}(?:,\d{3})*(?:\.\d+)?|-?\d+(?:\.\d+)?)(.*)$/);
+  if (!match) {
+    element.textContent = text;
+    return;
+  }
+
+  const leading = match[1] || "";
+  const numStr = match[2];
+  const trailing = match[3] || "";
+
+  // 뒤쪽에 또 다른 숫자가 등장하면 (예: "7시간 23분") 애니메이션 생략
+  if (/\d/.test(trailing)) {
+    element.textContent = text;
+    return;
+  }
+
+  const target = parseFloat(numStr.replace(/,/g, ""));
+  if (!Number.isFinite(target)) {
+    element.textContent = text;
+    return;
+  }
+
+  const decimalPart = numStr.split(".")[1];
+  const decimals = decimalPart ? decimalPart.length : 0;
+  const startedAt = performance.now();
+
+  function step(now) {
+    const t = Math.min((now - startedAt) / ms, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const current = target * eased;
+    const formatted = current.toLocaleString("ko-KR", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+    element.textContent = `${leading}${formatted}${trailing}`;
+    if (t < 1) {
+      requestAnimationFrame(step);
+    } else {
+      element.textContent = text;
+    }
+  }
+
+  requestAnimationFrame(step);
+}
+
+function maybeAnimateDashboardEntrance() {
+  if (dashboardEntrancePlayed) return;
+
+  // prefers-reduced-motion: reduce 일 때는 조용히 결승 값만 유지
+  const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // 대시보드 수치 타겟 수집
+  const targets = [
+    ...(totalRunDistanceElements || []),
+    ...(avgSleepScoreElements || []),
+    avgRunHeartRate,
+    totalRunCalories,
+    avgBodyBatteryScore,
+    avgDeepSleepRatio,
+    avgRemSleepRatio,
+    weeklyRunDistance,
+    monthlyRunDistance,
+    monthlyBodyBatteryScore,
+    latestScoreValue,
+  ].filter(Boolean);
+
+  if (!targets.length) return;
+
+  // 의미 있는 데이터가 하나라도 들어왔을 때만 최초 1회 재생 (초기 전부 0이면 스킵)
+  const hasMeaningfulData = targets.some((el) => {
+    const m = (el.textContent || "").match(/-?[\d,]+(?:\.\d+)?/);
+    if (!m) return false;
+    return parseFloat(m[0].replace(/,/g, "")) > 0;
+  });
+  if (!hasMeaningfulData) return;
+
+  dashboardEntrancePlayed = true;
+
+  if (reduceMotion) return;
+
+  targets.forEach((el, index) => {
+    const target = el.textContent;
+    setTimeout(() => animateNumberCountUp(el, target, 1200), index * 70);
   });
 }
 
