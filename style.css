@@ -647,6 +647,14 @@ a {
   word-break: break-word;
 }
 
+/* 대시보드 핵심 3종 (총 거리 · 평균 수면 점수 · 평균 수면 시간) 카디널 레드 */
+.big-number:has([data-total-run-distance]),
+.big-number:has([data-avg-sleep-score]),
+.big-number:has(#avgSleepTime) {
+  color: #c41e3a;
+  font-weight: 600;
+}
+
 .sub-number {
   color: var(--text-muted);
   font-size: 13px;
