@@ -1802,14 +1802,17 @@ label {
   }
 
   .dashboard-grid .card:hover {
-    transform: translateY(-3px);
+    transform: scale(1.05) translateY(-4px);
     border-color: rgba(0, 0, 0, 0.18);
-    box-shadow: 0 18px 40px -24px rgba(0, 0, 0, 0.28);
+    box-shadow: 0 26px 52px -22px rgba(0, 0, 0, 0.3);
+    z-index: 2;
   }
 
   .summary-panel .summary-mini-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 14px 30px -22px rgba(0, 0, 0, 0.22);
+    transform: scale(1.07) translateY(-4px);
+    box-shadow: 0 26px 52px -20px rgba(0, 0, 0, 0.3);
+    border-color: rgba(0, 0, 0, 0.16);
+    z-index: 2;
   }
 
   /* Top-edge neon shimmer line on hover */
@@ -1845,8 +1848,10 @@ label {
   .summary-mini-card .summary-mini-value {
     transition: transform 0.34s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
-  .card:hover .big-number,
+  .card:hover .big-number {
+    transform: translateY(-2px);
+  }
   .summary-mini-card:hover .summary-mini-value {
-    transform: translateY(-1px);
+    transform: translateY(-2px);
   }
 }

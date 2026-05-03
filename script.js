@@ -171,6 +171,7 @@ function bindEvents() {
   }
 
   bindTrendEvents();
+  setupSummaryMiniCardHoverCountUp();
 
   $$("[data-view-tab]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -2611,6 +2612,48 @@ function animateNumberCountUp(element, targetText, duration) {
   }
 
   requestAnimationFrame(step);
+}
+
+function setupSummaryMiniCardHoverCountUp() {
+  const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduceMotion) return;
+
+  // 대시보드 9장 카드 + 기록 요약 4장 박스 — 동일 패턴으로 hover 카운트업 부착
+  const groups = [
+    {
+      cardSelector: ".summary-panel .summary-mini-card",
+      valueSelector: ".summary-mini-value > span:not(.metric-unit)",
+    },
+    {
+      cardSelector: ".dashboard-grid .card",
+      valueSelector: ".big-number > span:not(.metric-unit)",
+    },
+  ];
+
+  groups.forEach(({ cardSelector, valueSelector }) => {
+    document.querySelectorAll(cardSelector).forEach((card) => {
+      const valueEl = card.querySelector(valueSelector);
+      if (!valueEl) return;
+
+      card.addEventListener("mouseenter", () => {
+        const target = valueEl.textContent;
+        if (!target) return;
+
+        // 의미 있는 수치일 때만 재생 (0/0분/-)
+        const m = target.match(/-?\d+(?:\.\d+)?/);
+        if (!m || parseFloat(m[0]) <= 0) return;
+
+        // 애니메이션 진행 중이면 다시 시작하지 않음 (마우스 바운스 방지)
+        if (valueEl.dataset.hoverAnimating === "1") return;
+        valueEl.dataset.hoverAnimating = "1";
+
+        animateNumberCountUp(valueEl, target, 750);
+        setTimeout(() => {
+          delete valueEl.dataset.hoverAnimating;
+        }, 800);
+      });
+    });
+  });
 }
 
 function maybeAnimateDashboardEntrance() {
