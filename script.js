@@ -1500,7 +1500,7 @@ function updateTrendSummary(data) {
   if (trendNote) {
     const rangeLabel = getTrendRangeLabel();
     const chartType = state.currentTrendRange === "7" || state.currentTrendRange === "14"
-      ? "네온 면적 + 라인"
+      ? "네온 막대 + 라인"
       : "네온 라인";
     const axisConfig = getTrendAxisConfig(metric);
 
@@ -1606,10 +1606,16 @@ function drawTrendChart(data, progress, now) {
   const lineT = easeInOutCubic(clamp(progress / 0.55, 0, 1));
   const areaT = easeOutCubic(clamp((progress - 0.2) / 0.5, 0, 1));
   const dotsT = clamp((progress - 0.45) / 0.5, 0, 1);
+  const barsT = easeOutCubic(clamp((progress - 0.15) / 0.55, 0, 1));
   const labelGate = progress >= 0.86;
   const breath = 0.5 + Math.sin(now / 820) * 0.5;
+  const showBars = state.currentTrendRange === "7" || state.currentTrendRange === "14";
 
-  drawTrendArea(ctx, validPoints, areaT, padding, chartHeight);
+  if (showBars) {
+    drawTrendBars(ctx, validPoints, padding, chartHeight, barsT, slotWidth, extremeInfo);
+  } else {
+    drawTrendArea(ctx, validPoints, areaT, padding, chartHeight);
+  }
   drawTrendLine(ctx, validPoints, lineT);
   drawTrendDots(ctx, validPoints, dotsT, extremeInfo);
   drawTrendExtremePulse(ctx, extremeInfo, breath, progress);
@@ -1706,24 +1712,68 @@ function drawTrendXAxis(ctx, points, padding, chartHeight) {
   ctx.restore();
 }
 
-function drawTrendBars(ctx, points, padding, chartHeight, progress, slotWidth) {
-  ctx.save();
-  const baseline = padding.top + chartHeight;
-  const baseWidth = Number.isFinite(slotWidth) ? slotWidth : 86;
-  const barWidth = Math.min(46, Math.max(18, baseWidth * 0.38));
+function drawTrendBars(ctx, points, padding, chartHeight, progress, slotWidth, extremeInfo) {
+  if (!points.length || progress <= 0) return;
 
-  points.forEach((point) => {
-    const animatedHeight = (baseline - point.y) * progress;
+  const baseline = padding.top + chartHeight;
+  const isMobile = window.innerWidth <= 900;
+  const baseWidth = Number.isFinite(slotWidth) ? slotWidth : 60;
+  const maxBarWidth = isMobile ? 22 : 32;
+  const barWidth = Math.min(maxBarWidth, Math.max(10, baseWidth * 0.38));
+  const radius = Math.min(7, barWidth / 2);
+
+  ctx.save();
+
+  points.forEach((point, index) => {
+    // 좌 → 우 웨이브로 차오르는 스태거
+    const stagger = points.length > 1 ? index / (points.length - 1) : 0;
+    const startAt = stagger * 0.4;
+    const localT = clamp((progress - startAt) / 0.6, 0, 1);
+    if (localT <= 0) return;
+
+    const eased = easeOutCubic(localT);
+    const fullHeight = baseline - point.y;
+    const animatedHeight = fullHeight * eased;
+    if (animatedHeight <= 0.5) return;
+
     const x = point.x - barWidth / 2;
     const y = baseline - animatedHeight;
 
-    const gradient = ctx.createLinearGradient(0, y, 0, baseline);
-    gradient.addColorStop(0, "rgba(82, 82, 82, 0.46)");
-    gradient.addColorStop(1, "rgba(82, 82, 82, 0.06)");
+    const variant = getTrendPointVariant(point, extremeInfo);
+    const palette = getTrendAccentPalette(variant);
+    const isExtreme = variant !== "default";
+    const topAlpha = isExtreme ? 0.4 : 0.3;
 
-    ctx.fillStyle = gradient;
-    drawRoundedRect(ctx, x, y, barWidth, animatedHeight, 9);
+    // 1) 본체 그라디언트 — 위는 형광, 아래는 거의 투명 (LED 튈브에 빛이 차오르는 느낌)
+    const bodyGrad = ctx.createLinearGradient(0, y, 0, baseline);
+    bodyGrad.addColorStop(0, `rgba(${palette.rgb}, ${topAlpha * localT})`);
+    bodyGrad.addColorStop(0.45, `rgba(${palette.rgb}, ${0.14 * localT})`);
+    bodyGrad.addColorStop(1, `rgba(${palette.rgb}, 0)`);
+
+    ctx.fillStyle = bodyGrad;
+    drawTopRoundedRect(ctx, x, y, barWidth, animatedHeight, radius);
     ctx.fill();
+
+    // 2) 좌측 글래스 시인 — 에지에 언딛 흔 광택
+    const sheenGrad = ctx.createLinearGradient(x, 0, x + barWidth, 0);
+    sheenGrad.addColorStop(0, `rgba(255, 255, 255, ${0.1 * localT})`);
+    sheenGrad.addColorStop(0.35, "rgba(255, 255, 255, 0)");
+    sheenGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
+    ctx.fillStyle = sheenGrad;
+    drawTopRoundedRect(ctx, x, y, barWidth, animatedHeight, radius);
+    ctx.fill();
+
+    // 3) 상단 형광 캡 — LED 튜브 윗자리 글로우
+    if (animatedHeight > 4) {
+      ctx.save();
+      ctx.shadowColor = `rgba(${palette.rgb}, 0.9)`;
+      ctx.shadowBlur = isExtreme ? 14 : 10;
+      ctx.globalAlpha = localT;
+      ctx.fillStyle = palette.hex;
+      drawRoundedRect(ctx, x, y - 0.6, barWidth, 2.4, 1.2);
+      ctx.fill();
+      ctx.restore();
+    }
   });
 
   ctx.restore();
@@ -2105,6 +2155,20 @@ function drawRoundedRect(ctx, x, y, width, height, radius) {
   ctx.quadraticCurveTo(x, y + safeHeight, x, y + safeHeight - safeRadius);
   ctx.lineTo(x, y + safeRadius);
   ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+  ctx.closePath();
+}
+
+function drawTopRoundedRect(ctx, x, y, width, height, radius) {
+  const safeHeight = Math.max(0, height);
+  const r = Math.min(radius, safeHeight, width / 2);
+
+  ctx.beginPath();
+  ctx.moveTo(x, y + safeHeight);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + safeHeight);
   ctx.closePath();
 }
 
