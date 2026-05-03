@@ -682,8 +682,13 @@ a {
   font-weight: 600;
 }
 
-/* 대시보드 보조 2종 (깊은 수면 비율 · REM 수면 비율) 딥 에메랄드 */
-.big-number:has(#avgDeepSleepRatio),
+/* 깊은 수면 비율 — 딥 네이비 블루 (deep ocean / deep sleep) */
+.big-number:has(#avgDeepSleepRatio) {
+  color: #1e3a8a;
+  font-weight: 600;
+}
+
+/* REM 수면 비율 — 딥 에메랄드 */
 .big-number:has(#avgRemSleepRatio) {
   color: #047857;
   font-weight: 600;
@@ -695,7 +700,9 @@ a {
    ============================================================ */
 
 .dashboard-grid > .card {
+  position: relative;
   --card-tint-rgb: 80, 80, 80;
+  --card-icon: none;
   background:
     radial-gradient(
       circle at 100% 0%,
@@ -711,15 +718,65 @@ a {
     var(--surface-card);
 }
 
-.dashboard-grid > .card:has([data-total-run-distance]) { --card-tint-rgb: 196, 30, 58; }
-.dashboard-grid > .card:has(#avgRunPace)               { --card-tint-rgb: 70, 84, 117; }
-.dashboard-grid > .card:has(#avgRunHeartRate)          { --card-tint-rgb: 235, 21, 21; }
-.dashboard-grid > .card:has([data-avg-sleep-score])    { --card-tint-rgb: 236, 198, 196; }
-.dashboard-grid > .card:has(#avgBodyBatteryScore)      { --card-tint-rgb: 248, 111, 143; }
-.dashboard-grid > .card:has(#avgSleepTime)             { --card-tint-rgb: 196, 30, 58; }
-.dashboard-grid > .card:has(#avgDeepSleepRatio)        { --card-tint-rgb: 4, 120, 87; }
-.dashboard-grid > .card:has(#avgRemSleepRatio)         { --card-tint-rgb: 4, 120, 87; }
-/* #totalRunCalories는 기본 중성 그레이(--card-tint-rgb: 80,80,80)로 표시 */
+/* 카드 우상단 컨텍스트 아이콘 워터마크 — 카드 틴트 컬러로 마스킹되어 자연스럽게 녹아듦 */
+.dashboard-grid > .card::before {
+  content: "";
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  width: 56px;
+  height: 56px;
+  background-color: rgba(var(--card-tint-rgb), 0.18);
+  -webkit-mask: var(--card-icon) center / contain no-repeat;
+  mask: var(--card-icon) center / contain no-repeat;
+  pointer-events: none;
+}
+
+/* 깊은 수면 비율 — 카드 배경/아이콘은 네이비 블루로 통일 */
+.dashboard-grid > .card:has([data-total-run-distance]) {
+  --card-tint-rgb: 196, 30, 58;
+  --card-icon: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 18l4-4 3 3 7-9'/%3E%3Ccircle cx='5' cy='18' r='1.5'/%3E%3Ccircle cx='19' cy='8' r='1.5'/%3E%3C/svg%3E");
+}
+
+.dashboard-grid > .card:has(#avgRunPace) {
+  --card-tint-rgb: 70, 84, 117;
+  --card-icon: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='13' r='8'/%3E%3Cpath d='M12 9v4l3 2'/%3E%3Cpath d='M9 1h6'/%3E%3Cpath d='M12 4v3'/%3E%3C/svg%3E");
+}
+
+.dashboard-grid > .card:has(#avgRunHeartRate) {
+  --card-tint-rgb: 235, 21, 21;
+  --card-icon: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12h4l2-6 3 12 2-7 2 4 1-3h4'/%3E%3C/svg%3E");
+}
+
+.dashboard-grid > .card:has(#totalRunCalories) {
+  --card-tint-rgb: 234, 88, 12;
+  --card-icon: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3c1 4 4 5 4 9a4 4 0 11-8 0c0-2 1-3 2-5 0 2 2 2 2-4z'/%3E%3C/svg%3E");
+}
+
+.dashboard-grid > .card:has([data-avg-sleep-score]) {
+  --card-tint-rgb: 236, 198, 196;
+  --card-icon: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z'/%3E%3C/svg%3E");
+}
+
+.dashboard-grid > .card:has(#avgBodyBatteryScore) {
+  --card-tint-rgb: 248, 111, 143;
+  --card-icon: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='8' width='15' height='9' rx='2'/%3E%3Cpath d='M20 11v3'/%3E%3Cpath d='M9.5 9.5l-2 4h2l-1 4 3-4h-2l1-4z'/%3E%3C/svg%3E");
+}
+
+.dashboard-grid > .card:has(#avgSleepTime) {
+  --card-tint-rgb: 196, 30, 58;
+  --card-icon: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='13' r='8'/%3E%3Cpath d='M12 9v4l3 2'/%3E%3Cpath d='M19 4a3 3 0 002 4'/%3E%3C/svg%3E");
+}
+
+.dashboard-grid > .card:has(#avgDeepSleepRatio) {
+  --card-tint-rgb: 30, 58, 138;
+  --card-icon: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6h6l-6 6h6'/%3E%3Cpath d='M11 12h5l-5 4h5'/%3E%3Cpath d='M17 15h3l-3 2h3'/%3E%3C/svg%3E");
+}
+
+.dashboard-grid > .card:has(#avgRemSleepRatio) {
+  --card-tint-rgb: 4, 120, 87;
+  --card-icon: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
+}
 
 .sub-number {
   color: var(--text-muted);
