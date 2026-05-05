@@ -6,15 +6,44 @@ const STORAGE_KEY = "runlog_lab_records_v1";
 const TREND_AXIS_MIN = 50;
 const TREND_AXIS_MAX = 100;
 const TREND_AXIS_TICKS = [100, 90, 80, 70, 60, 50];
-const TREND_HIGHLIGHT_RGB = "204, 255, 0";
-const TREND_HIGHLIGHT_HEX = "#ccff00";
-const TREND_MAX_HEX = "#00ffc2";
-const TREND_MAX_RGB = "0, 255, 194";
-const TREND_MIN_HEX = "#ff3d7f";
-const TREND_MIN_RGB = "255, 61, 127";
-const TREND_GRID_RGBA = "rgba(255, 255, 255, 0.06)";
-const TREND_GRID_STRONG_RGBA = "rgba(255, 255, 255, 0.16)";
-const TREND_AXIS_TEXT_RGBA = "rgba(255, 255, 255, 0.52)";
+
+// 메트릭별 액센트 컬러 — 대시보드 카드 컬러 시스템과 동일
+const TREND_METRIC_PALETTE = {
+  // running
+  distanceKm:        { hex: "#c41e3a", rgb: "196, 30, 58" },
+  durationMin:       { hex: "#0a0a0a", rgb: "10, 10, 10" },
+  avgPace:           { hex: "#465475", rgb: "70, 84, 117" },
+  calories:          { hex: "#ea580c", rgb: "234, 88, 12" },
+  avgSpeed:          { hex: "#c41e3a", rgb: "196, 30, 58" },
+  avgHeartRate:      { hex: "#eb1515", rgb: "235, 21, 21" },
+  maxHeartRate:      { hex: "#eb1515", rgb: "235, 21, 21" },
+  cadence:           { hex: "#465475", rgb: "70, 84, 117" },
+  strideLength:      { hex: "#c41e3a", rgb: "196, 30, 58" },
+  verticalRatio:     { hex: "#465475", rgb: "70, 84, 117" },
+  groundContactTime: { hex: "#465475", rgb: "70, 84, 117" },
+  // sleep
+  totalSleepMin:     { hex: "#c41e3a", rgb: "196, 30, 58" },
+  sleepScore:        { hex: "#77447e", rgb: "119, 68, 126" },
+  bodyBatteryScore:  { hex: "#f86f8f", rgb: "248, 111, 143" },
+  deepSleepMin:      { hex: "#1e3a8a", rgb: "30, 58, 138" },
+  remSleepMin:       { hex: "#047857", rgb: "4, 120, 87" },
+  deepSleepRatio:    { hex: "#1e3a8a", rgb: "30, 58, 138" },
+  remSleepRatio:     { hex: "#047857", rgb: "4, 120, 87" },
+  restingHeartRate:  { hex: "#eb1515", rgb: "235, 21, 21" },
+};
+
+const TREND_PALETTE_FALLBACK = { hex: "#0a0a0a", rgb: "10, 10, 10" };
+
+// 극값 신호 — 메트릭과 무관한 통일 마커 (잔잔한 그린/레드)
+const TREND_MAX_HEX = "#16a34a";
+const TREND_MAX_RGB = "22, 163, 74";
+const TREND_MIN_HEX = "#dc2626";
+const TREND_MIN_RGB = "220, 38, 38";
+
+// 라이트 테마 그리드/축
+const TREND_GRID_RGBA = "rgba(0, 0, 0, 0.05)";
+const TREND_GRID_STRONG_RGBA = "rgba(0, 0, 0, 0.12)";
+const TREND_AXIS_TEXT_RGBA = "rgba(0, 0, 0, 0.45)";
 
 
 const hasSupabaseConfig =
@@ -73,6 +102,7 @@ const trendMetricConfig = {
 let trendAnimationFrameId = null;
 let trendRenderedPoints = [];
 let trendHoverPointKey = null;
+let trendLastData = null;
 
 
 const $ = (selector) => document.querySelector(selector);
@@ -126,6 +156,7 @@ const trendTypeSelect = $("#trendType");
 const trendMetricSelect = $("#trendMetric");
 const trendRangeTabs = $("#trendRangeTabs");
 const trendChart = $("#trendChart");
+const trendCard = $(".trend-card");
 const trendLatestValue = $("#trendLatestValue");
 const trendAverageValue = $("#trendAverageValue");
 const trendMaxValue = $("#trendMaxValue");
@@ -1298,11 +1329,14 @@ function handleTrendChartPointerMove(event) {
 
   if (trendHoverPointKey !== nextKey) {
     trendHoverPointKey = nextKey;
+    redrawTrendIdle();
   }
 }
 
 function clearTrendChartHover() {
+  if (trendHoverPointKey === null) return;
   trendHoverPointKey = null;
+  redrawTrendIdle();
 }
 
 function getTrendPointerPosition(event) {
@@ -1371,6 +1405,8 @@ function renderTrendMetricOptions() {
 
 function renderTrendChart() {
   if (!trendChart) return;
+
+  applyTrendAccentVariable();
 
   const data = getTrendData();
   updateTrendSummary(data);
@@ -1502,8 +1538,8 @@ function updateTrendSummary(data) {
   if (trendNote) {
     const rangeLabel = getTrendRangeLabel();
     const chartType = state.currentTrendRange === "7" || state.currentTrendRange === "14"
-      ? "네온 막대 + 라인"
-      : "네온 라인";
+      ? "막대 + 라인"
+      : "라인";
     const axisConfig = getTrendAxisConfig(metric);
 
     trendNote.textContent = `${rangeLabel} · ${metric.label} · 좌측 축 ${axisConfig.label} 고정 · 날짜 순서 기준 · ${chartType} 그래프로 표시 중`;
@@ -1526,18 +1562,29 @@ function resizeTrendCanvas() {
 }
 
 function animateTrendChart(data) {
+  trendLastData = data;
   const startedAt = performance.now();
   const duration = 1100;
 
   function frame(now) {
     const progress = Math.min((now - startedAt) / duration, 1);
-
-    // 진입이 끝난 뒤에도 트래블링 스파크와 극값 글로우가 호흡하도록 프레임을 계속 돌린다.
     drawTrendChart(data, progress, now);
-    trendAnimationFrameId = requestAnimationFrame(frame);
+
+    if (progress < 1) {
+      trendAnimationFrameId = requestAnimationFrame(frame);
+    } else {
+      // 진입 완료 → rAF 종료. 호버는 mousemove에서 수동 redrawTrendIdle()로 트리거
+      trendAnimationFrameId = null;
+    }
   }
 
   trendAnimationFrameId = requestAnimationFrame(frame);
+}
+
+function redrawTrendIdle() {
+  if (trendAnimationFrameId !== null) return; // 진입 애니메이션 중이면 그대로 둔다
+  if (!trendLastData || !trendChart) return;
+  drawTrendChart(trendLastData, 1, performance.now());
 }
 
 function drawTrendChart(data, progress, now) {
@@ -1641,7 +1688,29 @@ function getTrendPointVariant(point, extremeInfo) {
 function getTrendAccentPalette(variant) {
   if (variant === "max") return { hex: TREND_MAX_HEX, rgb: TREND_MAX_RGB };
   if (variant === "min") return { hex: TREND_MIN_HEX, rgb: TREND_MIN_RGB };
-  return { hex: TREND_HIGHLIGHT_HEX, rgb: TREND_HIGHLIGHT_RGB };
+  return getTrendMetricPalette();
+}
+
+// 현재 선택된 메트릭의 액센트 팔레트
+function getTrendMetricPalette() {
+  const key = state.currentTrendMetric;
+  const type = state.currentTrendType;
+
+  if (key === "score") {
+    return type === "sleep"
+      ? { hex: "#77447e", rgb: "119, 68, 126" }
+      : { hex: "#c41e3a", rgb: "196, 30, 58" };
+  }
+
+  return TREND_METRIC_PALETTE[key] || TREND_PALETTE_FALLBACK;
+}
+
+// CSS 변수에 메트릭 액센트 동기화 → 컨테이너/배지/탭 톤 일관성 확보
+function applyTrendAccentVariable() {
+  if (!trendCard) return;
+  const palette = getTrendMetricPalette();
+  trendCard.style.setProperty("--trend-accent-rgb", palette.rgb);
+  trendCard.style.setProperty("--trend-accent-hex", palette.hex);
 }
 
 function drawTrendGrid(ctx, padding, chartWidth, chartHeight, axisConfig) {
@@ -1720,9 +1789,9 @@ function drawTrendBars(ctx, points, padding, chartHeight, progress, slotWidth, e
   const baseline = padding.top + chartHeight;
   const isMobile = window.innerWidth <= 900;
   const baseWidth = Number.isFinite(slotWidth) ? slotWidth : 60;
-  const maxBarWidth = isMobile ? 22 : 32;
-  const barWidth = Math.min(maxBarWidth, Math.max(10, baseWidth * 0.38));
-  const radius = Math.min(7, barWidth / 2);
+  const maxBarWidth = isMobile ? 24 : 34;
+  const barWidth = Math.min(maxBarWidth, Math.max(10, baseWidth * 0.42));
+  const radius = Math.min(6, barWidth / 2);
 
   ctx.save();
 
@@ -1744,37 +1813,23 @@ function drawTrendBars(ctx, points, padding, chartHeight, progress, slotWidth, e
     const variant = getTrendPointVariant(point, extremeInfo);
     const palette = getTrendAccentPalette(variant);
     const isExtreme = variant !== "default";
-    const topAlpha = isExtreme ? 0.4 : 0.3;
 
-    // 1) 본체 그라디언트 — 위는 형광, 아래는 거의 투명 (LED 튈브에 빛이 차오르는 느낌)
+    // 1) 본체 — 액센트 톤이 위에서 아래로 페이드되는 부드러운 그라디언트
     const bodyGrad = ctx.createLinearGradient(0, y, 0, baseline);
-    bodyGrad.addColorStop(0, `rgba(${palette.rgb}, ${topAlpha * localT})`);
-    bodyGrad.addColorStop(0.45, `rgba(${palette.rgb}, ${0.14 * localT})`);
-    bodyGrad.addColorStop(1, `rgba(${palette.rgb}, 0)`);
+    bodyGrad.addColorStop(0, `rgba(${palette.rgb}, ${(isExtreme ? 0.28 : 0.22) * localT})`);
+    bodyGrad.addColorStop(1, `rgba(${palette.rgb}, ${0.04 * localT})`);
 
     ctx.fillStyle = bodyGrad;
     drawTopRoundedRect(ctx, x, y, barWidth, animatedHeight, radius);
     ctx.fill();
 
-    // 2) 좌측 글래스 시인 — 에지에 언딛 흔 광택
-    const sheenGrad = ctx.createLinearGradient(x, 0, x + barWidth, 0);
-    sheenGrad.addColorStop(0, `rgba(255, 255, 255, ${0.1 * localT})`);
-    sheenGrad.addColorStop(0.35, "rgba(255, 255, 255, 0)");
-    sheenGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
-    ctx.fillStyle = sheenGrad;
-    drawTopRoundedRect(ctx, x, y, barWidth, animatedHeight, radius);
-    ctx.fill();
-
-    // 3) 상단 형광 캡 — LED 튜브 윗자리 글로우
-    if (animatedHeight > 4) {
-      ctx.save();
-      ctx.shadowColor = `rgba(${palette.rgb}, 0.9)`;
-      ctx.shadowBlur = isExtreme ? 14 : 10;
-      ctx.globalAlpha = localT;
-      ctx.fillStyle = palette.hex;
-      drawRoundedRect(ctx, x, y - 0.6, barWidth, 2.4, 1.2);
+    // 2) 상단 캡 — 솔리드 액센트 라인 (얇은 cap, 글로우 없음)
+    if (animatedHeight > 3) {
+      const capHeight = isExtreme ? 2.4 : 1.8;
+      const capRadius = capHeight / 2;
+      ctx.fillStyle = `rgba(${palette.rgb}, ${(isExtreme ? 1 : 0.92) * localT})`;
+      drawRoundedRect(ctx, x, y, barWidth, capHeight, capRadius);
       ctx.fill();
-      ctx.restore();
     }
   });
 
@@ -1793,13 +1848,16 @@ function drawTrendLine(ctx, points, progress) {
   }
   if (totalLen <= 0) return;
 
+  const palette = getTrendMetricPalette();
+
   ctx.save();
-  ctx.strokeStyle = TREND_HIGHLIGHT_HEX;
-  ctx.lineWidth = 2.6;
+  ctx.strokeStyle = palette.hex;
+  ctx.lineWidth = 2.4;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.shadowColor = `rgba(${TREND_HIGHLIGHT_RGB}, 0.55)`;
-  ctx.shadowBlur = 18;
+  ctx.shadowColor = `rgba(${palette.rgb}, 0.18)`;
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetY = 2;
 
   ctx.setLineDash([totalLen, totalLen]);
   ctx.lineDashOffset = totalLen * (1 - progress);
@@ -1831,28 +1889,31 @@ function drawTrendDots(ctx, points, progress, extremeInfo) {
     const variant = getTrendPointVariant(point, extremeInfo);
     const palette = getTrendAccentPalette(variant);
     const isExtreme = variant !== "default";
-    const baseR = Math.max(0, 5 * eased);
+    const baseR = Math.max(0, 4.4 * eased);
     const r = isExtreme ? baseR * 1.18 : baseR;
 
-    // 외곽 형광 헤일로
-    ctx.beginPath();
-    ctx.fillStyle = `rgba(${palette.rgb}, ${(isExtreme ? 0.3 : 0.22) * localT})`;
-    ctx.arc(point.x, point.y, r + (isExtreme ? 8 : 6), 0, Math.PI * 2);
-    ctx.fill();
+    // 외곽 링 — 극값에만 부드러운 후광 (디폴트는 깔끔하게 생략)
+    if (isExtreme) {
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(${palette.rgb}, ${0.18 * localT})`;
+      ctx.arc(point.x, point.y, r + 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
-    // 네온 링
-    ctx.shadowColor = `rgba(${palette.rgb}, 0.9)`;
-    ctx.shadowBlur = isExtreme ? 20 : 14;
+    // 본체 솔리드 — 미세한 액센트 그림자만 살짝
+    ctx.save();
+    ctx.shadowColor = `rgba(${palette.rgb}, ${isExtreme ? 0.35 : 0.18})`;
+    ctx.shadowBlur = isExtreme ? 8 : 4;
     ctx.beginPath();
     ctx.fillStyle = palette.hex;
     ctx.arc(point.x, point.y, r, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
 
-    // 흰 코어 LED
-    ctx.shadowBlur = 0;
+    // 흰 코어 — 가독성 + 크리스프한 도트 인상
     ctx.beginPath();
     ctx.fillStyle = "#ffffff";
-    ctx.arc(point.x, point.y, Math.max(1.2, r * 0.42), 0, Math.PI * 2);
+    ctx.arc(point.x, point.y, Math.max(1, r * 0.4), 0, Math.PI * 2);
     ctx.fill();
   });
 
@@ -1892,40 +1953,8 @@ function getTrendExtremeInfo(points, metric) {
   };
 }
 
-function drawTrendExtremePulse(ctx, extremeInfo, breath, progress) {
-  if (!extremeInfo || progress < 0.85) return;
-
-  const entries = [
-    { point: extremeInfo.maxPoint, variant: "max" },
-    { point: extremeInfo.minPoint, variant: "min" },
-  ].filter((e) => e.point);
-
-  if (!entries.length) return;
-
-  // max === min 인 단일 포인트 시나리오 중복 제거
-  const seen = new Set();
-  const unique = entries.filter((e) => {
-    const k = `${e.point.date}|${e.point.value}`;
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
-
-  ctx.save();
-
-  unique.forEach(({ point, variant }) => {
-    // 숨쉬는 듯한 스테디 글로우 — max/min 에 따라 다른 형광 색 적용
-    const palette = getTrendAccentPalette(variant);
-    const radius = 13 + breath * 5;
-    const alpha = 0.16 + breath * 0.2;
-
-    ctx.beginPath();
-    ctx.fillStyle = `rgba(${palette.rgb}, ${alpha})`;
-    ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  ctx.restore();
+function drawTrendExtremePulse() {
+  // 라이트 테마: 극값은 칩 라벨(최고/최저 변형 컬러)로 강조하므로 별도 호흡 펄스 없음
 }
 
 function drawTrendValueLabels(ctx, points, metric, extremeInfo, progress) {
@@ -1936,7 +1965,7 @@ function drawTrendValueLabels(ctx, points, metric, extremeInfo, progress) {
   if (!labelTargets.length) return;
 
   ctx.save();
-  ctx.font = "800 12px \"Pretendard Variable\", Pretendard, system-ui, sans-serif";
+  ctx.font = "600 12px \"Pretendard Variable\", Pretendard, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
@@ -1967,17 +1996,17 @@ function getTrendValueLabelTargets(points, extremeInfo) {
 function drawTrendSingleValueLabel(ctx, point, metric, isHover = false, variant = "default") {
   const palette = getTrendAccentPalette(variant);
   const label = formatTrendLabelValue(point.value, metric);
-  const paddingX = 8;
+  const paddingX = 9;
   const boxHeight = 22;
   const textWidth = ctx.measureText(label).width;
   const boxWidth = textWidth + paddingX * 2;
   const canvasWidth = parseFloat(trendChart.style.width) || 720;
 
   let x = point.x;
-  let y = point.y - (isHover ? 32 : 24);
+  let y = point.y - (isHover ? 32 : 26);
 
   if (y < 18) {
-    y = point.y + 26;
+    y = point.y + 28;
   }
 
   x = clamp(x, boxWidth / 2 + 4, canvasWidth - boxWidth / 2 - 4);
@@ -1985,26 +2014,30 @@ function drawTrendSingleValueLabel(ctx, point, metric, isHover = false, variant 
   ctx.save();
 
   if (isHover) {
-    // 호버: 블랙 필 + 변신별 네온 보더 + 네온 텍스트 (강조 대비)
-    ctx.shadowColor = `rgba(${palette.rgb}, 0.6)`;
-    ctx.shadowBlur = 14;
-    ctx.fillStyle = "rgba(10, 10, 10, 0.96)";
-    ctx.strokeStyle = palette.hex;
-    ctx.lineWidth = 1.2;
+    // 호버: 액센트 채우기 + 흰 글씨 (강조)
+    ctx.shadowColor = `rgba(${palette.rgb}, 0.28)`;
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetY = 3;
+    ctx.fillStyle = palette.hex;
+    drawRoundedRect(ctx, x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight, 11);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.fillStyle = "#ffffff";
+  } else {
+    // 고정 레이블: 흰 칩 + 액센트 보더 + 액센트 텍스트 (라이트 테마 시그니처)
+    ctx.shadowColor = "rgba(0, 0, 0, 0.08)";
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 2;
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = `rgba(${palette.rgb}, 0.45)`;
+    ctx.lineWidth = 1;
     drawRoundedRect(ctx, x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight, 11);
     ctx.fill();
     ctx.stroke();
     ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
     ctx.fillStyle = palette.hex;
-  } else {
-    // 고정 레이블: 네온 필 + 블랙 텍스트 (시그니처 배지 느낌)
-    ctx.shadowColor = `rgba(${palette.rgb}, 0.55)`;
-    ctx.shadowBlur = 16;
-    ctx.fillStyle = palette.hex;
-    drawRoundedRect(ctx, x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight, 11);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "#0a0a0a";
   }
 
   ctx.fillText(label, x, y + 0.5);
@@ -2024,7 +2057,7 @@ function drawTrendHoverValueLabel(ctx, points, metric, extremeInfo) {
   if (isAlreadyFixed) return;
 
   ctx.save();
-  ctx.font = "850 12px \"Pretendard Variable\", Pretendard, system-ui, sans-serif";
+  ctx.font = "600 12px \"Pretendard Variable\", Pretendard, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
@@ -2059,8 +2092,8 @@ function formatTrendLabelValue(value, metric) {
 
 function drawTrendEmpty(ctx, width, height) {
   ctx.save();
-  ctx.fillStyle = "rgba(255, 255, 255, 0.38)";
-  ctx.font = "600 15px \"Pretendard Variable\", Pretendard, system-ui, sans-serif";
+  ctx.fillStyle = "rgba(0, 0, 0, 0.42)";
+  ctx.font = "500 15px \"Pretendard Variable\", Pretendard, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("표시할 기록이 없습니다.", width / 2, height / 2);
@@ -2072,10 +2105,11 @@ function drawTrendArea(ctx, points, progress, padding, chartHeight) {
 
   const baseline = padding.top + chartHeight;
   const topY = Math.min(...points.map((p) => p.y));
+  const palette = getTrendMetricPalette();
 
   const gradient = ctx.createLinearGradient(0, topY, 0, baseline);
-  gradient.addColorStop(0, `rgba(${TREND_HIGHLIGHT_RGB}, ${0.34 * progress})`);
-  gradient.addColorStop(1, `rgba(${TREND_HIGHLIGHT_RGB}, 0)`);
+  gradient.addColorStop(0, `rgba(${palette.rgb}, ${0.14 * progress})`);
+  gradient.addColorStop(1, `rgba(${palette.rgb}, 0)`);
 
   ctx.save();
   ctx.fillStyle = gradient;
@@ -2088,59 +2122,8 @@ function drawTrendArea(ctx, points, progress, padding, chartHeight) {
   ctx.restore();
 }
 
-function drawTrendTravelingSpark(ctx, points, progress, now) {
-  // 진입 애니메이션이 끝난 뒤, 라인을 따라 무한히 흐르는 형광 스파크
-  if (progress < 1 || points.length < 2) return;
-
-  const segLens = [];
-  let totalLen = 0;
-  for (let i = 1; i < points.length; i += 1) {
-    const dx = points[i].x - points[i - 1].x;
-    const dy = points[i].y - points[i - 1].y;
-    const l = Math.sqrt(dx * dx + dy * dy);
-    segLens.push(l);
-    totalLen += l;
-  }
-  if (totalLen <= 0) return;
-
-  const cycle = 2600;
-  const t = (now % cycle) / cycle;
-  const target = t * totalLen;
-
-  let acc = 0;
-  let sx = points[0].x;
-  let sy = points[0].y;
-  for (let i = 0; i < segLens.length; i += 1) {
-    if (acc + segLens[i] >= target) {
-      const localT = segLens[i] > 0 ? (target - acc) / segLens[i] : 0;
-      sx = points[i].x + (points[i + 1].x - points[i].x) * localT;
-      sy = points[i].y + (points[i + 1].y - points[i].y) * localT;
-      break;
-    }
-    acc += segLens[i];
-  }
-
-  // 루프 시작/끝에서 부드럽게 페이드
-  const edge = Math.min(t, 1 - t);
-  const edgeFade = edge < 0.06 ? edge / 0.06 : 1;
-
-  ctx.save();
-
-  // 외곽 네온 오라
-  ctx.fillStyle = `rgba(${TREND_HIGHLIGHT_RGB}, ${0.28 * edgeFade})`;
-  ctx.beginPath();
-  ctx.arc(sx, sy, 12, 0, Math.PI * 2);
-  ctx.fill();
-
-  // 중심 흰 코어 + 강한 글로우
-  ctx.shadowColor = `rgba(${TREND_HIGHLIGHT_RGB}, 0.95)`;
-  ctx.shadowBlur = 22;
-  ctx.fillStyle = `rgba(255, 255, 255, ${0.95 * edgeFade})`;
-  ctx.beginPath();
-  ctx.arc(sx, sy, 4.5, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.restore();
+function drawTrendTravelingSpark() {
+  // 라이트 테마: 트래블링 스파크 비활성화 (깔끔하고 정적인 인상 우선)
 }
 
 function drawRoundedRect(ctx, x, y, width, height, radius) {
